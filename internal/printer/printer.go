@@ -302,6 +302,7 @@ func (p *printer) keepAlive(
 	for {
 		select {
 		case <-ctx.Done():
+			_ = client.close() // unblock readLoop
 			return
 		case <-ticker.C:
 			if err := client.ping(); err != nil {
