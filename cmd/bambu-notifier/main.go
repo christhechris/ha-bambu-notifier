@@ -16,18 +16,31 @@ import (
 	"github.com/l33t0/bambu-notifier/internal/printer"
 )
 
-var configPath string
+var (
+	version = "dev"
+	commit  = "none"
+)
+
+var (
+	configPath string
+	tailMode   bool
+)
 
 var rootCmd = &cobra.Command{
-	Use:   "bambu-notifier",
-	Short: "Monitors Bambu Lab printers via MQTT and sends notifications",
-	RunE:  run,
+	Use:     "bambu-notifier",
+	Short:   "Monitors Bambu Lab printers via MQTT and sends notifications",
+	Version: version + " (" + commit + ")",
+	RunE:    run,
 }
 
 func init() {
 	rootCmd.Flags().StringVar(
 		&configPath, "config", "config.toml",
 		"path to the TOML configuration file",
+	)
+	rootCmd.Flags().BoolVar(
+		&tailMode, "tail", false,
+		"also log every MQTT report to stdout",
 	)
 }
 
@@ -95,8 +108,10 @@ func buildPrinters(
 			Port:                  pc.Port,
 			SerialNumber:          pc.SerialNumber,
 			AccessCode:            pc.AccessCode,
+			CameraPort:            pc.CameraPort,
 			TLSInsecureSkipVerify: pc.TLSInsecureSkipVerify,
 			ReconnectDelaySeconds: pc.ReconnectDelaySeconds,
+			TailMode:              tailMode,
 		}, notifiers, logger)
 
 		printers = append(printers, p)

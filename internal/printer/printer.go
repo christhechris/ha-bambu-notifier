@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/l33t0/bambu-notifier/internal/camera"
 	"github.com/l33t0/bambu-notifier/internal/event"
 	"github.com/l33t0/bambu-notifier/internal/notifier"
 )
@@ -30,8 +31,10 @@ type Config struct {
 	Port                  int
 	SerialNumber          string
 	AccessCode            string
+	CameraPort            int
 	TLSInsecureSkipVerify bool
 	ReconnectDelaySeconds int
+	TailMode              bool
 }
 
 // printer implements the Printer interface.
@@ -187,10 +190,84 @@ func (p *printer) handleMessage(_ string, payload []byte) {
 		return
 	}
 
+	if p.cfg.TailMode {
+		p.logReport(report)
+	}
+
 	events := p.tracker.update(report)
+	if len(events) == 0 {
+		return
+	}
+
+	if p.cfg.TailMode {
+		for _, evt := range events {
+			p.logger.Info("EVENT",
+				"type", evt.Type,
+				"file", evt.Filename,
+				"progress", fmt.Sprintf("%d%%", evt.Progress),
+			)
+		}
+	}
+
+	if p.cfg.CameraPort > 0 && hasSnapshotEvent(events) {
+		snap, snapErr := camera.CaptureFrame(
+			p.cfg.Host, p.cfg.CameraPort,
+			p.cfg.AccessCode, p.cfg.TLSInsecureSkipVerify,
+		)
+		if snapErr != nil {
+			p.logger.Warn("camera snapshot failed",
+				"error", snapErr,
+			)
+		} else {
+			for i := range events {
+				events[i].Snapshot = snap
+			}
+		}
+	}
+
 	for _, evt := range events {
 		p.fanOut(evt)
 	}
+}
+
+func hasSnapshotEvent(events []event.Event) bool {
+	for _, e := range events {
+		switch e.Type {
+		case event.PrintStarted, event.PrintFinished,
+			event.PrintFailed, event.PrintPaused:
+			return true
+		}
+	}
+	return false
+}
+
+func (p *printer) logReport(r *parsedReport) {
+	attrs := []any{
+		"state", r.GcodeState,
+		"file", r.Filename,
+		"progress", fmt.Sprintf("%d%%", r.Progress),
+		"eta", r.ETA,
+		"nozzle", fmt.Sprintf("%.1f/%.1f°C",
+			r.Thermals.NozzleActual, r.Thermals.NozzleTarget),
+		"bed", fmt.Sprintf("%.1f/%.1f°C",
+			r.Thermals.BedActual, r.Thermals.BedTarget),
+	}
+	if r.NozzleType != "" {
+		attrs = append(attrs, "nozzle_type", r.NozzleType)
+	}
+	if r.ErrorCode != 0 {
+		attrs = append(attrs, "error_code", r.ErrorCode)
+	}
+	if r.ErrorMsg != "" {
+		attrs = append(attrs, "error_msg", r.ErrorMsg)
+	}
+	if len(r.HMSErrors) > 0 {
+		attrs = append(attrs, "hms", r.HMSErrors)
+	}
+	if len(r.AMSSlots) > 0 {
+		attrs = append(attrs, "ams_slots", len(r.AMSSlots))
+	}
+	p.logger.Info("report", attrs...)
 }
 
 func (p *printer) fanOut(evt event.Event) {

@@ -51,6 +51,7 @@ type Event struct {
 	ErrorMsg    string    `json:"error_msg,omitempty"`
 	HMSErrors   []string  `json:"hms_errors,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
+	Snapshot    []byte    `json:"-"` // JPEG camera frame, omitted from JSON
 }
 
 // GcodeState mirrors Bambu's gcode_state field values.

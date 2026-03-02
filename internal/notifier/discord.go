@@ -2,6 +2,7 @@ package notifier
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -37,8 +38,26 @@ var _ Notifier = (*discord)(nil)
 func (d *discord) Name() string { return d.name }
 
 func (d *discord) Send(ctx context.Context, ev event.Event) error {
-	return postJSON(ctx, d.webhookURL, d.buildPayload(ev),
-		d.secret, "discord")
+	payload := d.buildPayload(ev)
+
+	if ev.Snapshot != nil {
+		payload.Embeds[0].Image = &discordImage{
+			URL: "attachment://snapshot.jpg",
+		}
+
+		jsonBytes, err := json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("discord: marshal payload: %w", err)
+		}
+
+		return postMultipart(ctx, d.webhookURL,
+			map[string]string{"payload_json": string(jsonBytes)},
+			"files[0]", ev.Snapshot, "snapshot.jpg",
+			d.secret, "discord",
+		)
+	}
+
+	return postJSON(ctx, d.webhookURL, payload, d.secret, "discord")
 }
 
 type discordPayload struct {
@@ -46,9 +65,14 @@ type discordPayload struct {
 }
 
 type discordEmbed struct {
-	Title  string       `json:"title"`
-	Color  int          `json:"color"`
-	Fields []embedField `json:"fields"`
+	Title  string        `json:"title"`
+	Color  int           `json:"color"`
+	Fields []embedField  `json:"fields"`
+	Image  *discordImage `json:"image,omitempty"`
+}
+
+type discordImage struct {
+	URL string `json:"url"`
 }
 
 type embedField struct {

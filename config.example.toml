@@ -16,6 +16,7 @@ serial_number            = "AABBCC112233"
 access_code              = "12345678"
 tls_insecure_skip_verify = true           # Bambu uses self-signed certs
 reconnect_delay_seconds  = 30
+camera_port              = 6000          # camera snapshot port (0 = disabled)
 
 [printer.notifiers]
   [[printer.notifiers.discord]]

@@ -56,7 +56,7 @@ func TestTelegram_Send(t *testing.T) {
 			defer srv.Close()
 
 			tg := NewTelegram("test-telegram", "123:ABC", "456789").(*telegram)
-			tg.apiURL = srv.URL
+			tg.baseURL = srv.URL
 
 			err := tg.Send(context.Background(), tt.event)
 			require.NoError(t, err)
@@ -89,6 +89,46 @@ func TestTelegram_Send(t *testing.T) {
 	}
 }
 
+func TestTelegram_Send_WithSnapshot(t *testing.T) {
+	snapshot := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/sendPhoto", r.URL.Path)
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+
+		err := r.ParseMultipartForm(10 << 20)
+		require.NoError(t, err)
+
+		assert.Equal(t, "456789", r.FormValue("chat_id"))
+		assert.Equal(t, "HTML", r.FormValue("parse_mode"))
+		assert.Contains(t, r.FormValue("caption"), "X1C-Workshop")
+		assert.Contains(t, r.FormValue("caption"), "benchy.3mf")
+
+		file, header, fErr := r.FormFile("photo")
+		require.NoError(t, fErr)
+		defer func() { _ = file.Close() }()
+		assert.Equal(t, "snapshot.jpg", header.Filename)
+
+		fileData, readErr := io.ReadAll(file)
+		require.NoError(t, readErr)
+		assert.Equal(t, snapshot, fileData)
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	ev := testEvent()
+	ev.Snapshot = snapshot
+
+	tg := NewTelegram("test-telegram", "123:ABC", "456789").(*telegram)
+	tg.baseURL = srv.URL
+
+	err := tg.Send(context.Background(), ev)
+	require.NoError(t, err)
+}
+
 func TestTelegram_Name(t *testing.T) {
 	tg := NewTelegram("my-telegram", "token", "chat")
 	assert.Equal(t, "my-telegram", tg.Name())
@@ -101,7 +141,7 @@ func TestTelegram_Send_ServerError(t *testing.T) {
 	defer srv.Close()
 
 	tg := NewTelegram("test", "bad-token", "456789").(*telegram)
-	tg.apiURL = srv.URL
+	tg.baseURL = srv.URL
 
 	err := tg.Send(context.Background(), testEvent())
 	assert.Error(t, err)

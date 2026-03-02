@@ -69,6 +69,7 @@ type Printer struct {
 	Port                  int       `toml:"port"`
 	SerialNumber          string    `toml:"serial_number"`
 	AccessCode            string    `toml:"access_code"`
+	CameraPort            int       `toml:"camera_port"`
 	TLSInsecureSkipVerify bool      `toml:"tls_insecure_skip_verify"`
 	ReconnectDelaySeconds int       `toml:"reconnect_delay_seconds"`
 	Notifiers             Notifiers `toml:"notifiers"`

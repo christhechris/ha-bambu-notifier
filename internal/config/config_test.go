@@ -85,6 +85,24 @@ access_code   = "T1"
 
 		assert.Equal(t, 8883, cfg.Printers[0].Port)
 		assert.Equal(t, 30, cfg.Printers[0].ReconnectDelaySeconds)
+		assert.Equal(t, 0, cfg.Printers[0].CameraPort, "camera_port defaults to 0 (disabled)")
+	})
+
+	t.Run("loads camera_port when set", func(t *testing.T) {
+		t.Parallel()
+
+		withCamera := `
+[[printer]]
+name          = "P1"
+host          = "10.0.0.1"
+serial_number = "S1"
+access_code   = "T1"
+camera_port   = 6000
+`
+		cfg, err := Load(writeConfig(t, withCamera))
+		require.NoError(t, err)
+
+		assert.Equal(t, 6000, cfg.Printers[0].CameraPort)
 	})
 
 	t.Run("loads multiple printers", func(t *testing.T) {

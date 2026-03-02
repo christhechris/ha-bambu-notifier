@@ -166,6 +166,71 @@ func TestDiscord_Send(t *testing.T) {
 	}
 }
 
+func TestDiscord_Send_WithSnapshot(t *testing.T) {
+	snapshot := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+
+		err := r.ParseMultipartForm(10 << 20)
+		require.NoError(t, err)
+
+		payloadJSON := r.FormValue("payload_json")
+		require.NotEmpty(t, payloadJSON)
+
+		var payload discordPayload
+		require.NoError(t, json.Unmarshal([]byte(payloadJSON), &payload))
+		require.Len(t, payload.Embeds, 1)
+		require.NotNil(t, payload.Embeds[0].Image)
+		assert.Equal(t, "attachment://snapshot.jpg", payload.Embeds[0].Image.URL)
+		assert.Equal(t, colorGreen, payload.Embeds[0].Color)
+
+		file, header, fErr := r.FormFile("files[0]")
+		require.NoError(t, fErr)
+		defer func() { _ = file.Close() }()
+		assert.Equal(t, "snapshot.jpg", header.Filename)
+
+		fileData, fErr := io.ReadAll(file)
+		require.NoError(t, fErr)
+		assert.Equal(t, snapshot, fileData)
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	ev := testEvent()
+	ev.Snapshot = snapshot
+
+	d := NewDiscord("test-discord", srv.URL, "")
+	err := d.Send(context.Background(), ev)
+	require.NoError(t, err)
+}
+
+func TestDiscord_Send_WithSnapshot_HMAC(t *testing.T) {
+	snapshot := []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}
+	secret := "supersecret"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Contains(t, r.Header.Get("Content-Type"), "multipart/form-data")
+
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+
+		verifyHMAC(t, body, secret, r.Header.Get("X-Hub-Signature-256"))
+
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	ev := testEvent()
+	ev.Snapshot = snapshot
+
+	d := NewDiscord("test-discord", srv.URL, secret)
+	err := d.Send(context.Background(), ev)
+	require.NoError(t, err)
+}
+
 func TestDiscord_Name(t *testing.T) {
 	d := NewDiscord("my-discord", "http://example.com", "")
 	assert.Equal(t, "my-discord", d.Name())
