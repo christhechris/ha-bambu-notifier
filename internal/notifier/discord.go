@@ -1,14 +1,8 @@
 package notifier
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"github.com/l33t0/bambu-notifier/internal/event"
@@ -22,21 +16,19 @@ const (
 	colorYellow = 0xFFFF00
 )
 
-// discord sends notifications via a Discord webhook with rich embeds.
 type discord struct {
 	name       string
 	webhookURL string
 	secret     string
-	client     *http.Client
 }
 
-// NewDiscord returns a Notifier that posts rich embeds to a Discord webhook.
+// NewDiscord returns a Notifier that posts rich embeds to a Discord
+// webhook.
 func NewDiscord(name, webhookURL, secret string) Notifier {
 	return &discord{
 		name:       name,
 		webhookURL: webhookURL,
 		secret:     secret,
-		client:     http.DefaultClient,
 	}
 }
 
@@ -45,34 +37,8 @@ var _ Notifier = (*discord)(nil)
 func (d *discord) Name() string { return d.name }
 
 func (d *discord) Send(ctx context.Context, ev event.Event) error {
-	payload := d.buildPayload(ev)
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("discord: marshal payload: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.webhookURL, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("discord: create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	if d.secret != "" {
-		sig := computeHMAC(body, d.secret)
-		req.Header.Set("X-Hub-Signature-256", sig)
-	}
-
-	resp, err := d.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("discord: send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("discord: unexpected status %d", resp.StatusCode)
-	}
-	return nil
+	return postJSON(ctx, d.webhookURL, d.buildPayload(ev),
+		d.secret, "discord")
 }
 
 type discordPayload struct {
@@ -92,9 +58,6 @@ type embedField struct {
 }
 
 func (d *discord) buildPayload(ev event.Event) discordPayload {
-	title := formatTitle(ev.Type)
-	color := eventColor(ev.Type)
-
 	fields := []embedField{
 		{Name: "Printer Name", Value: ev.PrinterName, Inline: true},
 		{Name: "Filename", Value: ev.Filename, Inline: true},
@@ -110,24 +73,25 @@ func (d *discord) buildPayload(ev event.Event) discordPayload {
 	}
 
 	if len(ev.AMSSlots) > 0 {
-		var sb strings.Builder
-		for _, s := range ev.AMSSlots {
-			inUse := ""
-			if s.InUse {
-				inUse = " [IN USE]"
-			}
-			fmt.Fprintf(&sb, "Slot %d: %s (#%s)%s\n", s.SlotID, s.Material, s.ColorHex, inUse)
-		}
-		fields = append(fields, embedField{Name: "AMS Slots", Value: sb.String(), Inline: false})
+		fields = append(fields, embedField{
+			Name:  "AMS Slots",
+			Value: formatAMSSlots(ev.AMSSlots),
+		})
 	}
 
 	if ev.ErrorMsg != "" {
-		fields = append(fields, embedField{Name: "Error", Value: ev.ErrorMsg, Inline: false})
+		fields = append(fields, embedField{
+			Name: "Error", Value: ev.ErrorMsg,
+		})
 	}
 
 	return discordPayload{
 		Embeds: []discordEmbed{
-			{Title: title, Color: color, Fields: fields},
+			{
+				Title:  formatTitle(ev.Type),
+				Color:  eventColor(ev.Type),
+				Fields: fields,
+			},
 		},
 	}
 }
@@ -152,10 +116,4 @@ func formatTitle(t event.Type) string {
 	s = strings.ReplaceAll(s, "_", " ")
 	s = strings.ToUpper(s[:1]) + s[1:]
 	return s
-}
-
-func computeHMAC(body []byte, secret string) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }

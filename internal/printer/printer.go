@@ -3,7 +3,6 @@ package printer
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -14,13 +13,18 @@ import (
 	"github.com/l33t0/bambu-notifier/internal/notifier"
 )
 
+var pushallPayload = []byte(
+	`{"pushing":{"sequence_id":"0","command":"pushall"}}`,
+)
+
 // Printer manages a single MQTT connection to a Bambu printer.
 type Printer interface {
 	Start(ctx context.Context) error
 	Stop()
 }
 
-// PrinterConfig holds configuration for a single Bambu printer connection.
+// PrinterConfig holds configuration for a single Bambu printer
+// connection.
 type PrinterConfig struct {
 	Name                  string
 	Host                  string
@@ -44,14 +48,13 @@ type printer struct {
 
 var _ Printer = (*printer)(nil)
 
-// New creates a new Printer for the given config, fanning out events to notifiers.
-func New(cfg PrinterConfig, notifiers []notifier.Notifier, logger *slog.Logger) Printer {
-	if cfg.Port == 0 {
-		cfg.Port = 8883
-	}
-	if cfg.ReconnectDelaySeconds <= 0 {
-		cfg.ReconnectDelaySeconds = 5
-	}
+// New creates a new Printer for the given config, fanning out events
+// to notifiers.
+func New(
+	cfg PrinterConfig,
+	notifiers []notifier.Notifier,
+	logger *slog.Logger,
+) Printer {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -64,8 +67,8 @@ func New(cfg PrinterConfig, notifiers []notifier.Notifier, logger *slog.Logger) 
 	}
 }
 
-// Start connects to the printer's MQTT broker and begins listening for reports.
-// It blocks until the context is cancelled or an unrecoverable error occurs.
+// Start connects to the printer's MQTT broker and begins listening
+// for reports. It blocks until the context is cancelled.
 func (p *printer) Start(ctx context.Context) error {
 	ctx, p.cancel = context.WithCancel(ctx)
 
@@ -87,7 +90,9 @@ func (p *printer) Stop() {
 }
 
 func (p *printer) runLoop(ctx context.Context) {
-	baseDelay := time.Duration(p.cfg.ReconnectDelaySeconds) * time.Second
+	baseDelay := time.Duration(
+		p.cfg.ReconnectDelaySeconds,
+	) * time.Second
 	maxDelay := 5 * time.Minute
 	attempt := 0
 
@@ -98,9 +103,13 @@ func (p *printer) runLoop(ctx context.Context) {
 
 		client := p.newClient()
 
-		p.logger.Info("connecting to printer", "host", p.cfg.Host, "port", p.cfg.Port)
+		p.logger.Info("connecting to printer",
+			"host", p.cfg.Host, "port", p.cfg.Port,
+		)
 		if err := client.connect(); err != nil {
-			p.logger.Error("mqtt connect failed", "error", err, "attempt", attempt)
+			p.logger.Error("mqtt connect failed",
+				"error", err, "attempt", attempt,
+			)
 			p.backoff(ctx, baseDelay, maxDelay, attempt)
 			attempt++
 			continue
@@ -109,7 +118,9 @@ func (p *printer) runLoop(ctx context.Context) {
 		p.logger.Info("connected, subscribing to reports")
 		attempt = 0
 
-		topic := fmt.Sprintf("device/%s/report", p.cfg.SerialNumber)
+		topic := fmt.Sprintf(
+			"device/%s/report", p.cfg.SerialNumber,
+		)
 		if err := client.subscribe(topic); err != nil {
 			p.logger.Error("mqtt subscribe failed", "error", err)
 			client.close()
@@ -117,33 +128,30 @@ func (p *printer) runLoop(ctx context.Context) {
 			continue
 		}
 
-		// Send pushall command to request full state
-		reqTopic := fmt.Sprintf("device/%s/request", p.cfg.SerialNumber)
-		pushall, _ := json.Marshal(map[string]any{
-			"pushing": map[string]any{
-				"sequence_id": "0",
-				"command":     "pushall",
-			},
-		})
-		if err := client.publish(reqTopic, pushall); err != nil {
+		reqTopic := fmt.Sprintf(
+			"device/%s/request", p.cfg.SerialNumber,
+		)
+		if err := client.publish(reqTopic, pushallPayload); err != nil {
 			p.logger.Warn("failed to send pushall", "error", err)
 		}
 
-		// Reset state tracker on new connection
 		p.tracker.reset()
 
-		// Start keepalive
+		// Per-connection context so keepAlive exits when
+		// readLoop returns.
+		connCtx, connCancel := context.WithCancel(ctx)
+
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
-			p.keepAlive(ctx, client)
+			p.keepAlive(connCtx, client)
 		}()
 
-		// Block on read loop
 		if err := client.readLoop(); err != nil {
 			p.logger.Error("mqtt read loop exited", "error", err)
 		}
 
+		connCancel()
 		client.close()
 
 		if ctx.Err() != nil {
@@ -167,7 +175,9 @@ func (p *printer) newClient() *mqttClient {
 	}
 	opts = append(opts, withTLSConfig(tlsCfg))
 
-	return newMQTTClient(p.cfg.Host, p.cfg.Port, p.cfg.SerialNumber, opts...)
+	return newMQTTClient(
+		p.cfg.Host, p.cfg.Port, p.cfg.SerialNumber, opts...,
+	)
 }
 
 func (p *printer) handleMessage(topic string, payload []byte) {
@@ -184,18 +194,31 @@ func (p *printer) handleMessage(topic string, payload []byte) {
 }
 
 func (p *printer) fanOut(evt event.Event) {
+	var wg sync.WaitGroup
 	for _, n := range p.notifiers {
-		if err := n.Send(context.Background(), evt); err != nil {
-			p.logger.Error("notifier send failed",
-				"notifier", n.Name(),
-				"event", evt.Type,
-				"error", err,
+		wg.Add(1)
+		go func(n notifier.Notifier) {
+			defer wg.Done()
+			ctx, cancel := context.WithTimeout(
+				context.Background(), 15*time.Second,
 			)
-		}
+			defer cancel()
+			if err := n.Send(ctx, evt); err != nil {
+				p.logger.Error("notifier send failed",
+					"notifier", n.Name(),
+					"event", evt.Type,
+					"error", err,
+				)
+			}
+		}(n)
 	}
+	wg.Wait()
 }
 
-func (p *printer) keepAlive(ctx context.Context, client *mqttClient) {
+func (p *printer) keepAlive(
+	ctx context.Context,
+	client *mqttClient,
+) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -213,8 +236,14 @@ func (p *printer) keepAlive(ctx context.Context, client *mqttClient) {
 	}
 }
 
-func (p *printer) backoff(ctx context.Context, base, max time.Duration, attempt int) {
-	delay := time.Duration(float64(base) * math.Pow(2, float64(attempt)))
+func (p *printer) backoff(
+	ctx context.Context,
+	base, max time.Duration,
+	attempt int,
+) {
+	delay := time.Duration(
+		float64(base) * math.Pow(2, float64(attempt)),
+	)
 	if delay > max {
 		delay = max
 	}

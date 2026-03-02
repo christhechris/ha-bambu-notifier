@@ -177,7 +177,7 @@ func TestParseReport(t *testing.T) {
 				},
 				AMSTrayNow: "0",
 				AMSSlots: []event.AMSSlot{
-					{SlotID: 0, Material: "Bambu PLA Basic", ColorHex: "FF0000"},
+					{SlotID: 0, Material: "Bambu PLA Basic", ColorHex: "FF0000", InUse: true},
 					{SlotID: 1, Material: "Bambu PLA Basic", ColorHex: "00FF00"},
 				},
 			},

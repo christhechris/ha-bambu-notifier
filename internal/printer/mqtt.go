@@ -28,12 +28,7 @@ const (
 
 // CONNACK return codes.
 const (
-	connAccepted              byte = 0
-	connRefusedBadProto       byte = 1
-	connRefusedIDRejected     byte = 2
-	connRefusedServerUnavail  byte = 3
-	connRefusedBadCredentials byte = 4
-	connRefusedNotAuthorized  byte = 5
+	connAccepted byte = 0
 )
 
 // mqttClient is a minimal MQTT 3.1.1 client using only stdlib.
@@ -107,7 +102,7 @@ func (c *mqttClient) connect() error {
 
 	c.mu.Lock()
 	c.conn = conn
-	c.reader = bufio.NewReader(conn)
+	c.reader = bufio.NewReaderSize(conn, 32*1024)
 	c.closed.Store(false)
 	c.mu.Unlock()
 
@@ -308,11 +303,11 @@ func (c *mqttClient) readConnACK() (byte, error) {
 	if pktType != packetCONNACK {
 		return 0, fmt.Errorf("mqtt expected CONNACK, got type=%d", pktType)
 	}
-	return ParseConnACK(payload)
+	return parseConnACK(payload)
 }
 
-// ParseConnACK extracts the return code from a CONNACK payload.
-func ParseConnACK(payload []byte) (byte, error) {
+// parseConnACK extracts the return code from a CONNACK payload.
+func parseConnACK(payload []byte) (byte, error) {
 	if len(payload) < 2 {
 		return 0, fmt.Errorf("mqtt connack payload too short: %d", len(payload))
 	}
@@ -328,11 +323,11 @@ func (c *mqttClient) readSubACK() (byte, error) {
 	if pktType != packetSUBACK {
 		return 0, fmt.Errorf("mqtt expected SUBACK, got type=%d", pktType)
 	}
-	return ParseSubACK(payload)
+	return parseSubACK(payload)
 }
 
-// ParseSubACK extracts the granted QoS from a SUBACK payload.
-func ParseSubACK(payload []byte) (byte, error) {
+// parseSubACK extracts the granted QoS from a SUBACK payload.
+func parseSubACK(payload []byte) (byte, error) {
 	// Variable header: 2 bytes packet ID, then payload of granted QoS codes
 	if len(payload) < 3 {
 		return 0, fmt.Errorf("mqtt suback payload too short: %d", len(payload))

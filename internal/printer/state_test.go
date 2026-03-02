@@ -143,6 +143,63 @@ func TestStateTracker_CriticalError(t *testing.T) {
 	}
 }
 
+func TestStateTracker_CriticalErrorDedup(t *testing.T) {
+	st := newStateTracker("test-printer")
+
+	r := baseReport(event.StateRunning)
+	r.ErrorCode = 318767105
+	st.update(r)
+
+	// Same error code repeated → no duplicate
+	r2 := baseReport(event.StateRunning)
+	r2.ErrorCode = 318767105
+	events := st.update(r2)
+	assert.Empty(t, events)
+
+	// Different error code → new event
+	r3 := baseReport(event.StateRunning)
+	r3.ErrorCode = 999
+	events2 := st.update(r3)
+	require.Len(t, events2, 1)
+	assert.Equal(t, event.CriticalError, events2[0].Type)
+}
+
+func TestStateTracker_FilamentRunout(t *testing.T) {
+	st := newStateTracker("test-printer")
+
+	r := baseReport(event.StateRunning)
+	r.ErrorCode = 0x07008001
+	events := st.update(r)
+
+	var types []event.Type
+	for _, e := range events {
+		types = append(types, e.Type)
+	}
+	assert.Contains(t, types, event.FilamentRunout)
+	assert.Contains(t, types, event.CriticalError)
+}
+
+func TestStateTracker_HMSAlertClearedAndRefires(t *testing.T) {
+	st := newStateTracker("test-printer")
+
+	// First report with HMS error
+	r1 := baseReport(event.StateRunning)
+	r1.HMSErrors = []string{"Nozzle clog"}
+	st.update(r1)
+
+	// HMS error cleared
+	r2 := baseReport(event.StateRunning)
+	r2.HMSErrors = nil
+	st.update(r2)
+
+	// Same HMS error returns → should re-fire
+	r3 := baseReport(event.StateRunning)
+	r3.HMSErrors = []string{"Nozzle clog"}
+	events := st.update(r3)
+	require.Len(t, events, 1)
+	assert.Equal(t, event.HMSAlert, events[0].Type)
+}
+
 func TestStateTracker_HMSAlerts(t *testing.T) {
 	st := newStateTracker("test-printer")
 

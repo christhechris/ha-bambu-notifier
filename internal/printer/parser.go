@@ -29,6 +29,7 @@ type printReport struct {
 	HMSErrors     []hmsEntry `json:"hms"`
 	AMS           *amsStatus `json:"ams"`
 	AMSStatus     int        `json:"ams_status"`
+	Command       string     `json:"command"`
 }
 
 // hmsEntry represents a single HMS (Health Management System) alert.
@@ -72,6 +73,7 @@ type parsedReport struct {
 	Progress   int
 	ETA        string
 	NozzleType string
+	Source     string
 	Thermals   event.Thermals
 	ErrorCode  int
 	ErrorMsg   string
@@ -98,6 +100,7 @@ func parseReport(data []byte) (*parsedReport, error) {
 		Progress:   p.MCPercent,
 		ETA:        formatETA(p.MCRemainingT),
 		NozzleType: p.NozzleType,
+		Source:     sourceFromCommand(p.Command),
 		Thermals: event.Thermals{
 			NozzleActual: p.NozzleTemper,
 			NozzleTarget: p.NozzleTarget,
@@ -125,8 +128,8 @@ func parseReport(data []byte) (*parsedReport, error) {
 				slot := event.AMSSlot{
 					Material: tray.Material,
 					ColorHex: tray.Color,
+					InUse:    tray.ID == p.AMS.TrayNow,
 				}
-				// Parse tray ID to int, using slot index as fallback
 				if id, err := parseIntSafe(tray.ID); err == nil {
 					slot.SlotID = id
 				}
@@ -159,8 +162,25 @@ func formatETA(minutes int) string {
 	return fmt.Sprintf("%dm", m)
 }
 
+// sourceFromCommand derives the print source from the command field.
+func sourceFromCommand(cmd string) string {
+	switch cmd {
+	case "project_file":
+		return "local"
+	case "gcode_file":
+		return "local"
+	case "":
+		return ""
+	default:
+		return cmd
+	}
+}
+
 // parseIntSafe parses a string to int, returning an error if invalid.
 func parseIntSafe(s string) (int, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty string")
+	}
 	var n int
 	for _, c := range s {
 		if c < '0' || c > '9' {

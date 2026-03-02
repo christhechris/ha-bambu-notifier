@@ -261,13 +261,13 @@ func TestParseConnACK(t *testing.T) {
 		},
 		{
 			name:    "bad credentials",
-			payload: []byte{0x00, connRefusedBadCredentials},
-			code:    connRefusedBadCredentials,
+			payload: []byte{0x00, byte(4)},
+			code:    byte(4),
 		},
 		{
 			name:    "not authorized",
-			payload: []byte{0x00, connRefusedNotAuthorized},
-			code:    connRefusedNotAuthorized,
+			payload: []byte{0x00, byte(5)},
+			code:    byte(5),
 		},
 		{
 			name:    "payload too short",
@@ -283,7 +283,7 @@ func TestParseConnACK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			code, err := ParseConnACK(tt.payload)
+			code, err := parseConnACK(tt.payload)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
@@ -320,7 +320,7 @@ func TestParseSubACK(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			qos, err := ParseSubACK(tt.payload)
+			qos, err := parseSubACK(tt.payload)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
