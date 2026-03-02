@@ -1,13 +1,19 @@
+version: "2"
+
 run:
   timeout: 5m
 
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
 linters:
+  default: none
   enable:
     - bodyclose
     - errcheck
     - gocritic
-    - gofmt
-    - goimports
     - gosec
     - govet
     - ineffassign
@@ -19,18 +25,15 @@ linters:
     - unconvert
     - unparam
     - unused
-
-linters-settings:
-  govet:
-    enable-all: true
-  revive:
-    rules:
-      - name: blank-imports
-      - name: exported
-      - name: unused-parameter
-      - name: unreachable-code
-
-issues:
-  exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  settings:
+    govet:
+      enable-all: true
+    revive:
+      rules:
+        - name: blank-imports
+        - name: exported
+        - name: unused-parameter
+        - name: unreachable-code
+  exclusions:
+    presets:
+      - defaults
