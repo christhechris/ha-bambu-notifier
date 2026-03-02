@@ -35,5 +35,4 @@ linters:
         - name: unused-parameter
         - name: unreachable-code
   exclusions:
-    presets:
-      - defaults
+    presets: []
