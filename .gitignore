@@ -1,0 +1,21 @@
+# Binaries
+bin/
+bambu-notifier
+
+# Test artifacts
+coverage.out
+*.test
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Config (may contain secrets)
+config.toml

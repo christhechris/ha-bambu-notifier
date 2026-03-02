@@ -21,14 +21,15 @@ Step-by-step guide to create a Slack Incoming Webhook for bambu-notifier.
 
 ## Configure bambu-notifier
 
-Paste the webhook URL into your `config.toml`:
+Paste the webhook URL into your `config.toml` under the printer that should send to this channel:
 
 ```toml
-[[printer.notifier]]
-type        = "slack"
+[[printer.notifiers.slack]]
+name        = "ops-channel"
 webhook_url = "https://hooks.slack.com/services/T00000000/B00000000/xxxxxxxxxxxxxxxxxxxxxxxx"
+secret      = ""   # optional HMAC signing secret
 ```
 
-## Signing Secret
+## Optional: HMAC Signing
 
-Slack apps have a **Signing Secret** available under **Basic Information > App Credentials**. This can be used to verify that requests originate from Slack if you build custom integrations on top of bambu-notifier. The signing secret is separate from the webhook URL and is not required for basic webhook delivery.
+If you route webhooks through a proxy that validates signatures, set a `secret` to enable HMAC-SHA256 signing. Each request will include an `X-Hub-Signature-256` header with the format `sha256=<hex-encoded-hmac>`.

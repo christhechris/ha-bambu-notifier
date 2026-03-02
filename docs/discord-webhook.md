@@ -16,13 +16,13 @@ Step-by-step guide to create a Discord webhook for bambu-notifier.
 
 ## Configure bambu-notifier
 
-Paste the webhook URL into your `config.toml`:
+Paste the webhook URL into your `config.toml` under the printer that should send to this channel:
 
 ```toml
-[[printer.notifier]]
-type        = "discord"
+[[printer.notifiers.discord]]
+name        = "print-alerts"
 webhook_url = "https://discord.com/api/webhooks/1234567890/abcdef..."
-secret      = ""
+secret      = ""   # optional HMAC signing secret
 ```
 
 ## Optional: HMAC Signing
@@ -32,8 +32,8 @@ bambu-notifier supports signing webhook payloads with HMAC-SHA256. When a `secre
 This is useful if you route webhooks through a proxy or middleware that validates signatures before forwarding to Discord.
 
 ```toml
-[[printer.notifier]]
-type        = "discord"
+[[printer.notifiers.discord]]
+name        = "print-alerts"
 webhook_url = "https://your-proxy.example.com/webhook"
 secret      = "your-shared-secret"
 ```
