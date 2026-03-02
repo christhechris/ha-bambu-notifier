@@ -1,0 +1,47 @@
+# bambu-notifier configuration
+# Copy this file to config.toml and fill in your values.
+
+[log]
+format = "text"   # or "json" — overridden by LOG_FORMAT env var
+level  = "info"   # overridden by LOG_LEVEL env var
+
+# Multiple [[printer]] blocks = multiple independent MQTT connections.
+# Each printer instance has its own notifier list.
+
+[[printer]]
+name                     = "Bambu H2S Combo"
+host                     = "192.168.1.50"
+port                     = 8883           # default, optional
+serial_number            = "AABBCC112233"
+access_code              = "12345678"
+tls_insecure_skip_verify = true           # Bambu uses self-signed certs
+reconnect_delay_seconds  = 30
+
+[printer.notifiers]
+  [[printer.notifiers.discord]]
+  name        = "print-alerts"
+  webhook_url = "https://discord.com/api/webhooks/..."
+  secret      = ""   # optional HMAC secret for webhook signature verification
+
+  [[printer.notifiers.slack]]
+  name        = "ops-channel"
+  webhook_url = "https://hooks.slack.com/services/..."
+  secret      = ""
+
+  [[printer.notifiers.telegram]]
+  name      = "home-alerts"
+  bot_token = "123456:ABC-DEF..."
+  chat_id   = "-100123456789"
+
+# Second printer with independent notifiers:
+#
+# [[printer]]
+# name                     = "Bambu A1 Combo 1"
+# host                     = "192.168.1.51"
+# serial_number            = "DDEEFF445566"
+# access_code              = "87654321"
+# tls_insecure_skip_verify = true
+#
+#   [[printer.notifiers.discord]]
+#   name        = "workshop-alerts"
+#   webhook_url = "https://discord.com/api/webhooks/..."
