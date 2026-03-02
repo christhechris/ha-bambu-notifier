@@ -11,6 +11,7 @@ import (
 // LogFormat represents the log output format.
 type LogFormat string
 
+// Log output format options.
 const (
 	LogFormatJSON LogFormat = "json"
 	LogFormatText LogFormat = "text"
@@ -19,6 +20,7 @@ const (
 // LogLevel represents the log severity level.
 type LogLevel string
 
+// Log verbosity levels.
 const (
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"

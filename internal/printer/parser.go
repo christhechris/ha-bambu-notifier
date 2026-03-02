@@ -34,11 +34,11 @@ type printReport struct {
 
 // hmsEntry represents a single HMS (Health Management System) alert.
 type hmsEntry struct {
-	Attr    int    `json:"attr"`
-	Code    int    `json:"code"`
-	Module  string `json:"module"`
+	Attr     int    `json:"attr"`
+	Code     int    `json:"code"`
+	Module   string `json:"module"`
 	Severity string `json:"severity"`
-	Msg     string `json:"msg"`
+	Msg      string `json:"msg"`
 }
 
 // amsStatus represents the AMS (Automatic Material System) state.

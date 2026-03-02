@@ -367,7 +367,7 @@ func TestReadRemainingLengthExceedsMax(t *testing.T) {
 // buildPublishBody is a helper to construct a PUBLISH variable header + payload.
 func buildPublishBody(topic string, payload []byte) []byte {
 	var buf bytes.Buffer
-	binary.Write(&buf, binary.BigEndian, uint16(len(topic)))
+	_ = binary.Write(&buf, binary.BigEndian, uint16(len(topic)))
 	buf.WriteString(topic)
 	if payload != nil {
 		buf.Write(payload)

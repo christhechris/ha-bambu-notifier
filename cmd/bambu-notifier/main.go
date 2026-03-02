@@ -89,7 +89,7 @@ func buildPrinters(
 	for _, pc := range cfg.Printers {
 		notifiers := buildNotifiers(pc)
 
-		p := printer.New(printer.PrinterConfig{
+		p := printer.New(printer.Config{
 			Name:                  pc.Name,
 			Host:                  pc.Host,
 			Port:                  pc.Port,
@@ -106,21 +106,23 @@ func buildPrinters(
 }
 
 func buildNotifiers(pc config.Printer) []notifier.Notifier {
-	var notifiers []notifier.Notifier
+	n := pc.Notifiers
+	cap := len(n.Discord) + len(n.Slack) + len(n.Telegram)
+	notifiers := make([]notifier.Notifier, 0, cap)
 
-	for _, d := range pc.Notifiers.Discord {
+	for _, d := range n.Discord {
 		notifiers = append(notifiers,
 			notifier.NewDiscord(d.Name, d.WebhookURL, d.Secret),
 		)
 	}
 
-	for _, s := range pc.Notifiers.Slack {
+	for _, s := range n.Slack {
 		notifiers = append(notifiers,
 			notifier.NewSlack(s.Name, s.WebhookURL, s.Secret),
 		)
 	}
 
-	for _, t := range pc.Notifiers.Telegram {
+	for _, t := range n.Telegram {
 		notifiers = append(notifiers,
 			notifier.NewTelegram(t.Name, t.BotToken, t.ChatID),
 		)

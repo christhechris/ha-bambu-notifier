@@ -128,7 +128,7 @@ func TestSlack_Name(t *testing.T) {
 }
 
 func TestSlack_Send_ServerError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 	}))
 	defer srv.Close()
@@ -138,4 +138,3 @@ func TestSlack_Send_ServerError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected status 502")
 }
-

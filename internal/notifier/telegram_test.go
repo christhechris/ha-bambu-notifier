@@ -51,7 +51,7 @@ func TestTelegram_Send(t *testing.T) {
 				require.NoError(t, err)
 
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{"ok":true}`))
+				_, _ = w.Write([]byte(`{"ok":true}`))
 			}))
 			defer srv.Close()
 
@@ -95,7 +95,7 @@ func TestTelegram_Name(t *testing.T) {
 }
 
 func TestTelegram_Send_ServerError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()

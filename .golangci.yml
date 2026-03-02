@@ -28,11 +28,20 @@ linters:
   settings:
     govet:
       enable-all: true
+      disable:
+        - fieldalignment
+    gosec:
+      excludes:
+        - G117  # config structs holding secrets are not hardcoded secrets
+        - G304  # reading config file from a path variable is expected
     revive:
       rules:
         - name: blank-imports
-        - name: exported
         - name: unused-parameter
         - name: unreachable-code
   exclusions:
     presets: []
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec

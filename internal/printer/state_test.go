@@ -127,7 +127,7 @@ func TestStateTracker_CriticalError(t *testing.T) {
 	events := st.update(r)
 	require.Len(t, events, 2) // PrintStarted + CriticalError
 
-	var types []event.Type
+	types := make([]event.Type, 0, len(events))
 	for _, e := range events {
 		types = append(types, e.Type)
 	}
@@ -171,7 +171,7 @@ func TestStateTracker_FilamentRunout(t *testing.T) {
 	r.ErrorCode = 0x07008001
 	events := st.update(r)
 
-	var types []event.Type
+	types := make([]event.Type, 0, len(events))
 	for _, e := range events {
 		types = append(types, e.Type)
 	}

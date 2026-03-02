@@ -23,9 +23,8 @@ type Printer interface {
 	Stop()
 }
 
-// PrinterConfig holds configuration for a single Bambu printer
-// connection.
-type PrinterConfig struct {
+// Config holds configuration for a single Bambu printer connection.
+type Config struct {
 	Name                  string
 	Host                  string
 	Port                  int
@@ -37,7 +36,7 @@ type PrinterConfig struct {
 
 // printer implements the Printer interface.
 type printer struct {
-	cfg       PrinterConfig
+	cfg       Config
 	notifiers []notifier.Notifier
 	logger    *slog.Logger
 	tracker   *stateTracker
@@ -51,7 +50,7 @@ var _ Printer = (*printer)(nil)
 // New creates a new Printer for the given config, fanning out events
 // to notifiers.
 func New(
-	cfg PrinterConfig,
+	cfg Config,
 	notifiers []notifier.Notifier,
 	logger *slog.Logger,
 ) Printer {
@@ -123,7 +122,7 @@ func (p *printer) runLoop(ctx context.Context) {
 		)
 		if err := client.subscribe(topic); err != nil {
 			p.logger.Error("mqtt subscribe failed", "error", err)
-			client.close()
+			_ = client.close()
 			p.backoff(ctx, baseDelay, maxDelay, 0)
 			continue
 		}
@@ -152,7 +151,7 @@ func (p *printer) runLoop(ctx context.Context) {
 		}
 
 		connCancel()
-		client.close()
+		_ = client.close()
 
 		if ctx.Err() != nil {
 			return
@@ -164,14 +163,15 @@ func (p *printer) runLoop(ctx context.Context) {
 }
 
 func (p *printer) newClient() *mqttClient {
-	opts := []mqttOption{
+	opts := make([]mqttOption, 0, 4)
+	opts = append(opts,
 		withCredentials("bblp", p.cfg.AccessCode),
 		withOnPublish(p.handleMessage),
 		withLogger(p.logger),
-	}
+	)
 
 	tlsCfg := &tls.Config{
-		InsecureSkipVerify: p.cfg.TLSInsecureSkipVerify,
+		InsecureSkipVerify: p.cfg.TLSInsecureSkipVerify, //nolint:gosec // intentional: Bambu printers use self-signed certificates
 	}
 	opts = append(opts, withTLSConfig(tlsCfg))
 
@@ -180,7 +180,7 @@ func (p *printer) newClient() *mqttClient {
 	)
 }
 
-func (p *printer) handleMessage(topic string, payload []byte) {
+func (p *printer) handleMessage(_ string, payload []byte) {
 	report, err := parseReport(payload)
 	if err != nil {
 		p.logger.Debug("ignoring unparseable report", "error", err)
@@ -229,7 +229,7 @@ func (p *printer) keepAlive(
 		case <-ticker.C:
 			if err := client.ping(); err != nil {
 				p.logger.Warn("ping failed", "error", err)
-				client.close()
+				_ = client.close()
 				return
 			}
 		}

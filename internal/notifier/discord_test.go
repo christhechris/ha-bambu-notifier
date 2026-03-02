@@ -25,7 +25,7 @@ func testEvent() event.Event {
 		Progress:    42,
 		ETA:         "1h 23m",
 		NozzleType:  "0.4mm Hardened Steel",
-		Source:       "LAN",
+		Source:      "LAN",
 		Thermals: event.Thermals{
 			NozzleActual: 220.5,
 			NozzleTarget: 230.0,
@@ -172,7 +172,7 @@ func TestDiscord_Name(t *testing.T) {
 }
 
 func TestDiscord_Send_ServerError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()

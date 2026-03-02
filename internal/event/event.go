@@ -5,6 +5,7 @@ import "time"
 // Type represents the kind of print lifecycle event.
 type Type string
 
+// Print lifecycle event types.
 const (
 	PrintStarted      Type = "print_started"
 	PrintFinished     Type = "print_finished"
@@ -55,12 +56,13 @@ type Event struct {
 // GcodeState mirrors Bambu's gcode_state field values.
 type GcodeState string
 
+// Bambu printer gcode states.
 const (
-	StateRunning  GcodeState = "RUNNING"
-	StateFinish   GcodeState = "FINISH"
-	StateFailed   GcodeState = "FAILED"
-	StatePause    GcodeState = "PAUSE"
-	StateIdle     GcodeState = "IDLE"
-	StatePrepare  GcodeState = "PREPARE"
-	StateUnknown  GcodeState = ""
+	StateRunning GcodeState = "RUNNING"
+	StateFinish  GcodeState = "FINISH"
+	StateFailed  GcodeState = "FAILED"
+	StatePause   GcodeState = "PAUSE"
+	StateIdle    GcodeState = "IDLE"
+	StatePrepare GcodeState = "PREPARE"
+	StateUnknown GcodeState = ""
 )

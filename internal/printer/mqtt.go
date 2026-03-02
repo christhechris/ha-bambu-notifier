@@ -16,14 +16,14 @@ import (
 
 // MQTT 3.1.1 packet types.
 const (
-	packetCONNECT     byte = 1
-	packetCONNACK     byte = 2
-	packetPUBLISH     byte = 3
-	packetSUBSCRIBE   byte = 8
-	packetSUBACK      byte = 9
-	packetPINGREQ     byte = 12
-	packetPINGRESP    byte = 13
-	packetDISCONNECT  byte = 14
+	packetCONNECT    byte = 1
+	packetCONNACK    byte = 2
+	packetPUBLISH    byte = 3
+	packetSUBSCRIBE  byte = 8
+	packetSUBACK     byte = 9
+	packetPINGREQ    byte = 12
+	packetPINGRESP   byte = 13
+	packetDISCONNECT byte = 14
 )
 
 // CONNACK return codes.
@@ -106,18 +106,18 @@ func (c *mqttClient) connect() error {
 	c.closed.Store(false)
 	c.mu.Unlock()
 
-	if err := c.sendConnect(); err != nil {
-		conn.Close()
+	if err = c.sendConnect(); err != nil {
+		_ = conn.Close()
 		return err
 	}
 
 	code, err := c.readConnACK()
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return err
 	}
 	if code != connAccepted {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("mqtt connack refused: code=%d", code)
 	}
 
@@ -155,13 +155,6 @@ func (c *mqttClient) ping() error {
 		return fmt.Errorf("mqtt pingreq write: %w", err)
 	}
 	return nil
-}
-
-// disconnect sends DISCONNECT and closes the connection.
-func (c *mqttClient) disconnect() error {
-	pkt := []byte{packetDISCONNECT << 4, 0}
-	_ = c.write(pkt) // best-effort
-	return c.close()
 }
 
 // close shuts down the underlying connection.
@@ -243,7 +236,7 @@ func buildConnect(clientID, username, password string, keepAlive uint16) []byte 
 	varHeader.WriteByte(flags)
 
 	// Keep alive
-	binary.Write(&varHeader, binary.BigEndian, keepAlive)
+	_ = binary.Write(&varHeader, binary.BigEndian, keepAlive)
 
 	// Payload
 	writeUTF8String(&payload, clientID)
@@ -265,7 +258,7 @@ func buildSubscribe(packetID uint16, topic string, qos byte) []byte {
 	var body bytes.Buffer
 
 	// Packet identifier
-	binary.Write(&body, binary.BigEndian, packetID)
+	_ = binary.Write(&body, binary.BigEndian, packetID)
 
 	// Topic filter + requested QoS
 	writeUTF8String(&body, topic)
@@ -394,14 +387,14 @@ func (c *mqttClient) write(data []byte) error {
 
 // writeUTF8String writes an MQTT UTF-8 encoded string (length-prefixed).
 func writeUTF8String(w *bytes.Buffer, s string) {
-	binary.Write(w, binary.BigEndian, uint16(len(s)))
+	_ = binary.Write(w, binary.BigEndian, uint16(len(s))) //nolint:gosec // len bounded by MQTT max packet size
 	w.WriteString(s)
 }
 
 // writeRemainingLength encodes the MQTT remaining length field.
 func writeRemainingLength(w *bytes.Buffer, length int) {
 	for {
-		encoded := byte(length % 128)
+		encoded := byte(length % 128) //nolint:gosec // value is always 0-127 from modulo 128
 		length /= 128
 		if length > 0 {
 			encoded |= 0x80
@@ -416,7 +409,7 @@ func writeRemainingLength(w *bytes.Buffer, length int) {
 // readRemainingLength decodes the MQTT remaining length field.
 func readRemainingLength(r io.ByteReader) (int, error) {
 	var value int
-	var multiplier int = 1
+	multiplier := 1
 	for i := 0; i < 4; i++ {
 		b, err := r.ReadByte()
 		if err != nil {

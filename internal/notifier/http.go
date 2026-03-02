@@ -44,13 +44,13 @@ func postJSON(
 		req.Header.Set("X-Hub-Signature-256", computeHMAC(body, secret))
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req) //nolint:gosec // webhook URL is from trusted config, not user input
 	if err != nil {
 		return fmt.Errorf("%s: send request: %w", label, err)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
