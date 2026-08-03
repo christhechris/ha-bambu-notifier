@@ -1,6 +1,8 @@
 ARG BUILD_FROM=alpine:3.21
 
-FROM golang:1.26-alpine AS builder
+# Build stage always runs on the build host's platform; the Go
+# cross-compile below targets BUILD_ARCH.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 ARG BUILD_ARCH=amd64
 ARG BUILD_VERSION=dev

@@ -14,17 +14,32 @@ jobs:
     name: Build ${{ matrix.arch }} add-on
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        arch: [aarch64, amd64, armv7]
+        include:
+          - arch: aarch64
+            platform: linux/arm64
+            build_from: arm64v8/alpine:3.21
+          - arch: amd64
+            platform: linux/amd64
+            build_from: amd64/alpine:3.21
+          - arch: armv7
+            platform: linux/arm/v7
+            build_from: arm32v7/alpine:3.21
     steps:
       - uses: actions/checkout@v4
 
+      - name: Read add-on version
+        id: version
+        run: echo "version=$(yq -r .version bambu-notifier/config.yaml)" >> "$GITHUB_OUTPUT"
+
       - name: Check add-on version matches tag
         if: github.ref_type == 'tag'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          v=$(yq -r .version bambu-notifier/config.yaml)
-          if [ "v${v}" != "${GITHUB_REF_NAME}" ]; then
-            echo "config.yaml version ${v} does not match tag ${GITHUB_REF_NAME}"
+          if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "config.yaml version ${VERSION} does not match tag ${GITHUB_REF_NAME}"
             exit 1
           fi
 
@@ -33,16 +48,36 @@ jobs:
           mkdir -p bambu-notifier/src
           cp -r go.mod go.sum cmd internal bambu-notifier/src/
 
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build add-on
-        uses: home-assistant/builder@2026.06.0
+      - name: Build and push add-on image
+        uses: docker/build-push-action@v6
         with:
-          args: |
-            --${{ matrix.arch }} \
-            --target /data/bambu-notifier \
-            --addon
+          context: bambu-notifier
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            BUILD_FROM=${{ matrix.build_from }}
+            BUILD_ARCH=${{ matrix.arch }}
+            BUILD_VERSION=${{ steps.version.outputs.version }}
+          labels: |
+            io.hass.name=Bambu Notifier
+            io.hass.description=Discord/Slack/Telegram notifications for Bambu Lab printers
+            io.hass.type=addon
+            io.hass.arch=${{ matrix.arch }}
+            io.hass.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-bambu-notifier-addon:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-bambu-notifier-addon:latest
+          cache-from: type=gha,scope=addon-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=addon-${{ matrix.arch }}
