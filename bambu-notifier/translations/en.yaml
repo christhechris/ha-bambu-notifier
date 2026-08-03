@@ -5,8 +5,23 @@ configuration:
   tail:
     name: Tail MQTT reports
     description: Also log every parsed MQTT report — useful for debugging printer connections.
+  discovery:
+    name: ha-bambulab discovery
+    description: >-
+      Import printers automatically from the ha-bambulab integration instead of
+      listing them manually. Optionally set camera_port (6000) to enable
+      snapshots for imported printers.
+  discord:
+    name: Discord notifiers
+    description: Discord webhooks to notify. Applied to all printers.
+  slack:
+    name: Slack notifiers
+    description: Slack webhooks to notify. Applied to all printers.
+  telegram:
+    name: Telegram notifiers
+    description: Telegram bots to notify. Applied to all printers.
   printer:
     name: Printers
     description: >-
-      One entry per Bambu Lab printer, each with its own discord/slack/telegram
-      notifier lists. Edit in YAML mode; see the Documentation tab for the format.
+      One entry per Bambu Lab printer. Leave empty when using ha-bambulab
+      discovery. Edit in YAML mode; see the Documentation tab for the format.

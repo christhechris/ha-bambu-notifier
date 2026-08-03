@@ -1,5 +1,5 @@
 name: Bambu Notifier
-version: "1.0.0"
+version: "1.1.0"
 slug: bambu_notifier
 description: Discord/Slack/Telegram notifications for Bambu Lab printers via their local MQTT
 url: https://github.com/christhechris/ha-bambu-notifier
@@ -10,17 +10,39 @@ arch:
 image: ghcr.io/christhechris/{arch}-bambu-notifier-addon
 startup: application
 boot: auto
+map:
+  - homeassistant_config:ro
 options:
   log:
     level: info
     format: text
   tail: false
+  discovery:
+    enabled: false
+  discord: []
+  slack: []
+  telegram: []
   printer: []
 schema:
   log:
     level: list(debug|info|warn|error)?
     format: list(json|text)?
   tail: bool?
+  discovery:
+    enabled: bool?
+    camera_port: int?
+  discord:
+    - name: str?
+      webhook_url: str
+      secret: password?
+  slack:
+    - name: str?
+      webhook_url: str
+      secret: password?
+  telegram:
+    - name: str?
+      bot_token: password
+      chat_id: str
   printer:
     - name: str
       host: str
@@ -30,15 +52,3 @@ schema:
       camera_port: int?
       tls_insecure_skip_verify: bool?
       reconnect_delay_seconds: int?
-      discord:
-        - name: str?
-          webhook_url: str
-          secret: password?
-      slack:
-        - name: str?
-          webhook_url: str
-          secret: password?
-      telegram:
-        - name: str?
-          bot_token: password
-          chat_id: str

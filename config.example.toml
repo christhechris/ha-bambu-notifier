@@ -7,6 +7,24 @@
 format = "text"   # or "json" — overridden by LOG_FORMAT env var
 level  = "info"   # overridden by LOG_LEVEL env var
 
+# Global notifiers apply to every printer (in addition to any
+# per-printer lists below):
+#
+# [[notifiers.discord]]
+# name        = "print-alerts"
+# webhook_url = "https://discord.com/api/webhooks/..."
+
+# Import printers automatically from the ha-bambulab Home Assistant
+# integration (https://github.com/greghesp/ha-bambulab) instead of —
+# or in addition to — the [[printer]] blocks below. Discovered
+# printers use the global notifiers plus any [discovery.notifiers.*]
+# lists.
+#
+# [discovery]
+# enabled     = true
+# camera_port = 6000   # snapshots for discovered printers (0 = disabled)
+# # path = "/homeassistant/.storage/core.config_entries"  # autodetected
+
 # Multiple [[printer]] blocks = multiple independent MQTT connections.
 # Each printer instance has its own notifier list.
 

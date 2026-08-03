@@ -83,11 +83,86 @@ type Printer struct {
 	FlatTelegram []Telegram `toml:"-" json:"telegram"`
 }
 
-// Config is the top-level application configuration.
+// Discovery configures importing printers from the ha-bambulab Home
+// Assistant integration's config entry storage. Discovered printers
+// get the notifier lists and camera port configured here.
+type Discovery struct {
+	Enabled    bool      `toml:"enabled" json:"enabled"`
+	Path       string    `toml:"path" json:"path"`
+	CameraPort int       `toml:"camera_port" json:"camera_port"`
+	Notifiers  Notifiers `toml:"notifiers" json:"notifiers"`
+
+	// Flattened notifier lists for HA options.json (same reason as
+	// Printer's Flat* fields). Merged into Notifiers by Load.
+	FlatDiscord  []Discord  `toml:"-" json:"discord"`
+	FlatSlack    []Slack    `toml:"-" json:"slack"`
+	FlatTelegram []Telegram `toml:"-" json:"telegram"`
+}
+
+// Config is the top-level application configuration. The top-level
+// Notifiers apply to every printer (manual and discovered) in addition
+// to any per-printer lists; the HA add-on only exposes these global
+// lists because the Supervisor schema cannot mark lists nested in
+// printer entries as optional.
 type Config struct {
-	Log      Log       `toml:"log" json:"log"`
-	Tail     bool      `toml:"tail" json:"tail"`
-	Printers []Printer `toml:"printer" json:"printer"`
+	Log       Log       `toml:"log" json:"log"`
+	Tail      bool      `toml:"tail" json:"tail"`
+	Discovery Discovery `toml:"discovery" json:"discovery"`
+	Notifiers Notifiers `toml:"notifiers" json:"notifiers"`
+	Printers  []Printer `toml:"printer" json:"printer"`
+
+	// Flattened global notifier lists for HA options.json.
+	FlatDiscord  []Discord  `toml:"-" json:"discord"`
+	FlatSlack    []Slack    `toml:"-" json:"slack"`
+	FlatTelegram []Telegram `toml:"-" json:"telegram"`
+}
+
+// DiscoveredPrinter is a printer imported from an external source such
+// as the ha-bambulab integration.
+type DiscoveredPrinter struct {
+	Name       string
+	Host       string
+	Serial     string
+	AccessCode string
+}
+
+// MergeDiscovered appends discovered printers that are not already
+// configured (matched by serial number), attaching the discovery
+// notifier lists and camera port. TLS verification is disabled for
+// discovered printers since Bambu printers use self-signed
+// certificates. Returns the number of printers added.
+func (cfg *Config) MergeDiscovered(ds []DiscoveredPrinter) int {
+	known := make(map[string]bool, len(cfg.Printers))
+	for _, p := range cfg.Printers {
+		known[p.SerialNumber] = true
+	}
+
+	notifiers := combineNotifiers(
+		cfg.Discovery.Notifiers, cfg.Notifiers,
+	)
+
+	added := 0
+	for _, d := range ds {
+		if known[d.Serial] {
+			continue
+		}
+		known[d.Serial] = true
+
+		cfg.Printers = append(cfg.Printers, Printer{
+			Name:                  d.Name,
+			Host:                  d.Host,
+			SerialNumber:          d.Serial,
+			AccessCode:            d.AccessCode,
+			CameraPort:            cfg.Discovery.CameraPort,
+			TLSInsecureSkipVerify: true,
+			Notifiers:             notifiers,
+		})
+		added++
+	}
+
+	applyDefaults(cfg)
+
+	return added
 }
 
 // Load reads a TOML or JSON configuration file from path (JSON when
@@ -112,6 +187,7 @@ func Load(path string) (Config, error) {
 	}
 
 	mergeFlatNotifiers(&cfg)
+	applyGlobalNotifiers(&cfg)
 	applyDefaults(&cfg)
 	applyEnvOverrides(&cfg)
 
@@ -137,6 +213,60 @@ func mergeFlatNotifiers(cfg *Config) {
 		p.FlatDiscord = nil
 		p.FlatSlack = nil
 		p.FlatTelegram = nil
+	}
+
+	d := &cfg.Discovery
+	d.Notifiers.Discord = append(
+		d.Notifiers.Discord, d.FlatDiscord...,
+	)
+	d.Notifiers.Slack = append(
+		d.Notifiers.Slack, d.FlatSlack...,
+	)
+	d.Notifiers.Telegram = append(
+		d.Notifiers.Telegram, d.FlatTelegram...,
+	)
+	d.FlatDiscord = nil
+	d.FlatSlack = nil
+	d.FlatTelegram = nil
+
+	cfg.Notifiers.Discord = append(
+		cfg.Notifiers.Discord, cfg.FlatDiscord...,
+	)
+	cfg.Notifiers.Slack = append(
+		cfg.Notifiers.Slack, cfg.FlatSlack...,
+	)
+	cfg.Notifiers.Telegram = append(
+		cfg.Notifiers.Telegram, cfg.FlatTelegram...,
+	)
+	cfg.FlatDiscord = nil
+	cfg.FlatSlack = nil
+	cfg.FlatTelegram = nil
+}
+
+// applyGlobalNotifiers appends the top-level notifier lists to every
+// configured printer. Discovered printers get them via
+// MergeDiscovered.
+func applyGlobalNotifiers(cfg *Config) {
+	for i := range cfg.Printers {
+		cfg.Printers[i].Notifiers = combineNotifiers(
+			cfg.Printers[i].Notifiers, cfg.Notifiers,
+		)
+	}
+}
+
+// combineNotifiers returns a and b concatenated into freshly
+// allocated lists.
+func combineNotifiers(a, b Notifiers) Notifiers {
+	return Notifiers{
+		Discord: append(
+			append([]Discord{}, a.Discord...), b.Discord...,
+		),
+		Slack: append(
+			append([]Slack{}, a.Slack...), b.Slack...,
+		),
+		Telegram: append(
+			append([]Telegram{}, a.Telegram...), b.Telegram...,
+		),
 	}
 }
 
@@ -166,7 +296,7 @@ func validate(cfg Config) error {
 		return err
 	}
 
-	if len(cfg.Printers) == 0 {
+	if len(cfg.Printers) == 0 && !cfg.Discovery.Enabled {
 		return fmt.Errorf("at least one [[printer]] is required")
 	}
 
@@ -176,7 +306,13 @@ func validate(cfg Config) error {
 		}
 	}
 
-	return nil
+	if err := validateNotifiers(
+		"discovery.notifiers", cfg.Discovery.Notifiers,
+	); err != nil {
+		return err
+	}
+
+	return validateNotifiers("notifiers", cfg.Notifiers)
 }
 
 func validateLog(l Log) error {
@@ -216,16 +352,17 @@ func validatePrinter(idx int, p Printer) error {
 		)
 	}
 
-	return validateNotifiers(idx, p.Notifiers)
+	return validateNotifiers(
+		fmt.Sprintf("printer[%d].notifiers", idx), p.Notifiers,
+	)
 }
 
-func validateNotifiers(idx int, n Notifiers) error {
+func validateNotifiers(prefix string, n Notifiers) error {
 	for i, d := range n.Discord {
 		if d.WebhookURL == "" {
 			return fmt.Errorf(
-				"printer[%d].notifiers.discord[%d]: "+
-					"webhook_url is required",
-				idx, i,
+				"%s.discord[%d]: webhook_url is required",
+				prefix, i,
 			)
 		}
 	}
@@ -233,9 +370,8 @@ func validateNotifiers(idx int, n Notifiers) error {
 	for i, s := range n.Slack {
 		if s.WebhookURL == "" {
 			return fmt.Errorf(
-				"printer[%d].notifiers.slack[%d]: "+
-					"webhook_url is required",
-				idx, i,
+				"%s.slack[%d]: webhook_url is required",
+				prefix, i,
 			)
 		}
 	}
@@ -243,17 +379,15 @@ func validateNotifiers(idx int, n Notifiers) error {
 	for i, t := range n.Telegram {
 		if t.BotToken == "" {
 			return fmt.Errorf(
-				"printer[%d].notifiers.telegram[%d]: "+
-					"bot_token is required",
-				idx, i,
+				"%s.telegram[%d]: bot_token is required",
+				prefix, i,
 			)
 		}
 
 		if t.ChatID == "" {
 			return fmt.Errorf(
-				"printer[%d].notifiers.telegram[%d]: "+
-					"chat_id is required",
-				idx, i,
+				"%s.telegram[%d]: chat_id is required",
+				prefix, i,
 			)
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/l33t0/bambu-notifier/internal/config"
+	"github.com/l33t0/bambu-notifier/internal/discovery"
 	"github.com/l33t0/bambu-notifier/internal/notifier"
 	"github.com/l33t0/bambu-notifier/internal/printer"
 )
@@ -58,6 +59,30 @@ func run(_ *cobra.Command, _ []string) error {
 
 	logger := setupLogger(cfg.Log)
 	slog.SetDefault(logger)
+
+	if cfg.Discovery.Enabled {
+		discovered, derr := discovery.Printers(
+			cfg.Discovery.Path, logger,
+		)
+		if derr != nil {
+			logger.Warn("ha-bambulab discovery failed",
+				"error", derr,
+			)
+		} else {
+			added := cfg.MergeDiscovered(discovered)
+			logger.Info("imported printers from ha-bambulab",
+				slog.Int("found", len(discovered)),
+				slog.Int("added", added),
+			)
+		}
+	}
+
+	if len(cfg.Printers) == 0 {
+		return fmt.Errorf(
+			"no printers configured and none discovered " +
+				"from ha-bambulab",
+		)
+	}
 
 	logger.Info("configuration loaded",
 		slog.Int("printers", len(cfg.Printers)),

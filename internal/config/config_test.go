@@ -307,6 +307,270 @@ func TestLoad_json(t *testing.T) {
 	})
 }
 
+func TestLoad_discovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("allows zero printers when discovery is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := Load(writeConfig(t, `
+[discovery]
+enabled = true
+
+  [[discovery.notifiers.discord]]
+  name        = "print-alerts"
+  webhook_url = "https://discord.com/api/webhooks/123/abc"
+`))
+		require.NoError(t, err)
+
+		assert.True(t, cfg.Discovery.Enabled)
+		assert.Empty(t, cfg.Printers)
+		require.Len(t, cfg.Discovery.Notifiers.Discord, 1)
+	})
+
+	t.Run("loads flat discovery notifiers from JSON", func(t *testing.T) {
+		t.Parallel()
+
+		optionsJSON := `{
+  "discovery": {
+    "enabled": true,
+    "camera_port": 6000,
+    "discord": [
+      {"name": "d", "webhook_url": "https://discord.com/api/webhooks/1/a"}
+    ]
+  }
+}`
+		cfg, err := Load(writeConfigNamed(t, "options.json", optionsJSON))
+		require.NoError(t, err)
+
+		assert.True(t, cfg.Discovery.Enabled)
+		assert.Equal(t, 6000, cfg.Discovery.CameraPort)
+		require.Len(t, cfg.Discovery.Notifiers.Discord, 1)
+		assert.Nil(t, cfg.Discovery.FlatDiscord)
+	})
+
+	t.Run("validates discovery notifiers", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfig(t, `
+[discovery]
+enabled = true
+
+  [[discovery.notifiers.telegram]]
+  name = "t"
+`))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			"discovery.notifiers.telegram[0]: bot_token is required")
+	})
+
+	t.Run("still requires a printer when discovery is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfig(t, `
+[discovery]
+enabled = false
+`))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			"at least one [[printer]] is required")
+	})
+}
+
+func TestLoad_globalNotifiers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("global notifiers apply to every printer (TOML)", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := Load(writeConfig(t, `
+[[notifiers.slack]]
+webhook_url = "https://hooks.slack.com/services/T/B/x"
+
+[[printer]]
+name          = "P1"
+host          = "10.0.0.1"
+serial_number = "S1"
+access_code   = "T1"
+
+[[printer]]
+name          = "P2"
+host          = "10.0.0.2"
+serial_number = "S2"
+access_code   = "T2"
+
+  [[printer.notifiers.discord]]
+  webhook_url = "https://discord.com/api/webhooks/1/a"
+`))
+		require.NoError(t, err)
+
+		require.Len(t, cfg.Printers, 2)
+		assert.Len(t, cfg.Printers[0].Notifiers.Slack, 1)
+		assert.Empty(t, cfg.Printers[0].Notifiers.Discord)
+		assert.Len(t, cfg.Printers[1].Notifiers.Slack, 1)
+		assert.Len(t, cfg.Printers[1].Notifiers.Discord, 1,
+			"per-printer notifiers are kept alongside global ones")
+	})
+
+	t.Run("top-level flat lists apply to printers (HA options.json)", func(t *testing.T) {
+		t.Parallel()
+
+		// Shape written by the add-on schema: notifiers only at
+		// the top level, printers without notifier lists.
+		optionsJSON := `{
+  "log": {"level": "info", "format": "text"},
+  "tail": false,
+  "printer": [
+    {
+      "name": "SAIL X1C",
+      "host": "10.196.68.126",
+      "access_code": "965f267e",
+      "serial_number": "00M09D562300170",
+      "tls_insecure_skip_verify": true
+    }
+  ],
+  "slack": [
+    {"webhook_url": "https://hooks.slack.com/services/T/B/x"}
+  ]
+}`
+		cfg, err := Load(writeConfigNamed(t, "options.json", optionsJSON))
+		require.NoError(t, err)
+
+		require.Len(t, cfg.Printers, 1)
+		require.Len(t, cfg.Printers[0].Notifiers.Slack, 1)
+		assert.Empty(t, cfg.Printers[0].Notifiers.Discord)
+		assert.Empty(t, cfg.Printers[0].Notifiers.Telegram)
+		assert.Nil(t, cfg.FlatSlack)
+	})
+
+	t.Run("validates global notifiers", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfig(t, `
+[[notifiers.discord]]
+name = "d"
+
+[[printer]]
+name          = "P1"
+host          = "10.0.0.1"
+serial_number = "S1"
+access_code   = "T1"
+`))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			"notifiers.discord[0]: webhook_url is required")
+	})
+}
+
+func TestMergeDiscovered(t *testing.T) {
+	t.Parallel()
+
+	discord := Discord{
+		Name:       "d",
+		WebhookURL: "https://discord.com/api/webhooks/1/a",
+	}
+
+	t.Run("adds discovered printers with discovery settings", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Discovery: Discovery{
+				Enabled:    true,
+				CameraPort: 6000,
+				Notifiers:  Notifiers{Discord: []Discord{discord}},
+			},
+		}
+
+		added := cfg.MergeDiscovered([]DiscoveredPrinter{
+			{
+				Name:       "Workshop P1S",
+				Host:       "192.168.1.50",
+				Serial:     "AABBCC112233",
+				AccessCode: "12345678",
+			},
+		})
+
+		assert.Equal(t, 1, added)
+		require.Len(t, cfg.Printers, 1)
+
+		p := cfg.Printers[0]
+		assert.Equal(t, "Workshop P1S", p.Name)
+		assert.Equal(t, 8883, p.Port, "defaults applied to discovered printers")
+		assert.Equal(t, 30, p.ReconnectDelaySeconds)
+		assert.Equal(t, 6000, p.CameraPort)
+		assert.True(t, p.TLSInsecureSkipVerify)
+		require.Len(t, p.Notifiers.Discord, 1)
+	})
+
+	t.Run("manual printer wins on serial collision", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Printers: []Printer{
+				{
+					Name:         "Manual",
+					Host:         "10.0.0.1",
+					SerialNumber: "AABBCC112233",
+					AccessCode:   "T1",
+				},
+			},
+		}
+
+		added := cfg.MergeDiscovered([]DiscoveredPrinter{
+			{
+				Name:       "Discovered",
+				Host:       "192.168.1.50",
+				Serial:     "AABBCC112233",
+				AccessCode: "12345678",
+			},
+			{
+				Name:       "New",
+				Host:       "192.168.1.51",
+				Serial:     "DDEEFF445566",
+				AccessCode: "87654321",
+			},
+		})
+
+		assert.Equal(t, 1, added)
+		require.Len(t, cfg.Printers, 2)
+		assert.Equal(t, "Manual", cfg.Printers[0].Name)
+		assert.Equal(t, "New", cfg.Printers[1].Name)
+	})
+
+	t.Run("discovered printers get discovery and global notifiers", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Discovery: Discovery{
+				Enabled:   true,
+				Notifiers: Notifiers{Discord: []Discord{discord}},
+			},
+			Notifiers: Notifiers{
+				Slack: []Slack{{
+					WebhookURL: "https://hooks.slack.com/services/T/B/x",
+				}},
+			},
+		}
+
+		added := cfg.MergeDiscovered([]DiscoveredPrinter{
+			{
+				Name:       "Workshop P1S",
+				Host:       "192.168.1.50",
+				Serial:     "AABBCC112233",
+				AccessCode: "12345678",
+			},
+		})
+
+		assert.Equal(t, 1, added)
+		require.Len(t, cfg.Printers, 1)
+		assert.Len(t, cfg.Printers[0].Notifiers.Discord, 1)
+		assert.Len(t, cfg.Printers[0].Notifiers.Slack, 1)
+	})
+}
+
 func TestLoad_missingPrinterFields(t *testing.T) {
 	t.Parallel()
 
