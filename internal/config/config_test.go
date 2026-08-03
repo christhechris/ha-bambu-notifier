@@ -12,8 +12,14 @@ import (
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 
+	return writeConfigNamed(t, "config.toml", content)
+}
+
+func writeConfigNamed(t *testing.T, name, content string) string {
+	t.Helper()
+
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.toml")
+	path := filepath.Join(dir, name)
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
 
 	return path
@@ -153,6 +159,147 @@ access_code   = "T2"
 		_, err := Load(writeConfig(t, `[log]
 level = "info"
 `))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			"at least one [[printer]] is required")
+	})
+}
+
+func TestLoad_json(t *testing.T) {
+	t.Parallel()
+
+	optionsJSON := `{
+  "log": {"level": "debug", "format": "json"},
+  "tail": true,
+  "printer": [
+    {
+      "name": "X1C",
+      "host": "192.168.1.100",
+      "serial_number": "AABBCC112233",
+      "access_code": "12345678",
+      "tls_insecure_skip_verify": true,
+      "camera_port": 6000,
+      "discord": [
+        {
+          "name": "print-alerts",
+          "webhook_url": "https://discord.com/api/webhooks/123/abc",
+          "secret": "mysecret"
+        }
+      ],
+      "slack": [
+        {
+          "name": "ops",
+          "webhook_url": "https://hooks.slack.com/services/T/B/x"
+        }
+      ],
+      "telegram": [
+        {"name": "home", "bot_token": "123:ABC", "chat_id": "-100123"}
+      ]
+    }
+  ]
+}`
+
+	t.Run("loads Home Assistant options.json shape", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := Load(writeConfigNamed(t, "options.json", optionsJSON))
+		require.NoError(t, err)
+
+		assert.Equal(t, LogLevelDebug, cfg.Log.Level)
+		assert.Equal(t, LogFormatJSON, cfg.Log.Format)
+		assert.True(t, cfg.Tail)
+		require.Len(t, cfg.Printers, 1)
+
+		p := cfg.Printers[0]
+		assert.Equal(t, "X1C", p.Name)
+		assert.Equal(t, 8883, p.Port, "default port applies to JSON configs")
+		assert.Equal(t, 30, p.ReconnectDelaySeconds, "default reconnect delay applies")
+		assert.Equal(t, 6000, p.CameraPort)
+		assert.True(t, p.TLSInsecureSkipVerify)
+
+		require.Len(t, p.Notifiers.Discord, 1, "flat discord list merges into Notifiers")
+		assert.Equal(t, "print-alerts", p.Notifiers.Discord[0].Name)
+		assert.Equal(t, "mysecret", p.Notifiers.Discord[0].Secret)
+		require.Len(t, p.Notifiers.Slack, 1)
+		require.Len(t, p.Notifiers.Telegram, 1)
+		assert.Equal(t, "-100123", p.Notifiers.Telegram[0].ChatID)
+
+		assert.Nil(t, p.FlatDiscord)
+		assert.Nil(t, p.FlatSlack)
+		assert.Nil(t, p.FlatTelegram)
+	})
+
+	t.Run("accepts nested notifiers object in JSON", func(t *testing.T) {
+		t.Parallel()
+
+		nested := `{
+  "printer": [
+    {
+      "name": "P1",
+      "host": "10.0.0.1",
+      "serial_number": "S1",
+      "access_code": "T1",
+      "notifiers": {
+        "discord": [
+          {"name": "d", "webhook_url": "https://discord.com/api/webhooks/1/a"}
+        ]
+      }
+    }
+  ]
+}`
+		cfg, err := Load(writeConfigNamed(t, "config.json", nested))
+		require.NoError(t, err)
+
+		require.Len(t, cfg.Printers[0].Notifiers.Discord, 1)
+		assert.Equal(t, "d", cfg.Printers[0].Notifiers.Discord[0].Name)
+	})
+
+	t.Run("extension check is case-insensitive", func(t *testing.T) {
+		t.Parallel()
+
+		minimal := `{"printer": [{"name": "P1", "host": "10.0.0.1", "serial_number": "S1", "access_code": "T1"}]}`
+
+		cfg, err := Load(writeConfigNamed(t, "options.JSON", minimal))
+		require.NoError(t, err)
+
+		assert.Equal(t, "P1", cfg.Printers[0].Name)
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfigNamed(t, "options.json", "{{invalid"))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(), "parsing config file")
+	})
+
+	t.Run("validation errors match TOML paths", func(t *testing.T) {
+		t.Parallel()
+
+		missing := `{
+  "printer": [
+    {
+      "name": "P1",
+      "host": "10.0.0.1",
+      "serial_number": "S1",
+      "access_code": "T1",
+      "discord": [{"name": "d"}]
+    }
+  ]
+}`
+		_, err := Load(writeConfigNamed(t, "options.json", missing))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			"printer[0].notifiers.discord[0]: webhook_url is required")
+	})
+
+	t.Run("returns error when no printers are defined", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfigNamed(t, "options.json", `{"printer": []}`))
 		require.Error(t, err)
 
 		assert.Contains(t, err.Error(),

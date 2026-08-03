@@ -1,0 +1,12 @@
+configuration:
+  log:
+    name: Logging
+    description: Log level (debug/info/warn/error) and output format (text/json).
+  tail:
+    name: Tail MQTT reports
+    description: Also log every parsed MQTT report — useful for debugging printer connections.
+  printer:
+    name: Printers
+    description: >-
+      One entry per Bambu Lab printer, each with its own discord/slack/telegram
+      notifier lists. Edit in YAML mode; see the Documentation tab for the format.

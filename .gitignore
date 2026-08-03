@@ -1,6 +1,8 @@
 # Binaries
 bin/
-bambu-notifier
+/bambu-notifier
+# ...but not the Home Assistant add-on directory
+!/bambu-notifier/
 
 # Test artifacts
 coverage.out

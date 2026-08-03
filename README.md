@@ -22,6 +22,16 @@ Each printer runs as an independent goroutine with its own MQTT connection and a
 
 ## Quick Start
 
+### Home Assistant Add-on
+
+1. In Home Assistant, go to **Settings → Add-ons → Add-on Store**, open the
+   **⋮** menu → **Repositories**, and add
+   `https://github.com/christhechris/ha-bambu-notifier`.
+2. Install the **Bambu Notifier** add-on.
+3. Configure your printers on the add-on's Configuration tab (YAML editor)
+   and start it — see the add-on's
+   [documentation](bambu-notifier/DOCS.md) for the options format.
+
 ### Docker Compose
 
 ```yaml

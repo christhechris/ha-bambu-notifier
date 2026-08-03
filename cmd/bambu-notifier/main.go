@@ -36,7 +36,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVar(
 		&configPath, "config", "config.toml",
-		"path to the TOML configuration file",
+		"path to the TOML or JSON configuration file",
 	)
 	rootCmd.Flags().BoolVar(
 		&tailMode, "tail", false,
@@ -111,7 +111,7 @@ func buildPrinters(
 			CameraPort:            pc.CameraPort,
 			TLSInsecureSkipVerify: pc.TLSInsecureSkipVerify,
 			ReconnectDelaySeconds: pc.ReconnectDelaySeconds,
-			TailMode:              tailMode,
+			TailMode:              tailMode || cfg.Tail,
 		}, notifiers, logger)
 
 		printers = append(printers, p)

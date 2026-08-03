@@ -1,5 +1,7 @@
 # bambu-notifier configuration
 # Copy this file to config.toml and fill in your values.
+# A JSON config with the same structure is also accepted when the
+# --config path ends in .json (used by the Home Assistant add-on).
 
 [log]
 format = "text"   # or "json" — overridden by LOG_FORMAT env var

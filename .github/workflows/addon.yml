@@ -1,0 +1,48 @@
+name: Add-on
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }} add-on
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [aarch64, amd64, armv7]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check add-on version matches tag
+        if: github.ref_type == 'tag'
+        run: |
+          v=$(yq -r .version bambu-notifier/config.yaml)
+          if [ "v${v}" != "${GITHUB_REF_NAME}" ]; then
+            echo "config.yaml version ${v} does not match tag ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Stage Go source into add-on build context
+        run: |
+          mkdir -p bambu-notifier/src
+          cp -r go.mod go.sum cmd internal bambu-notifier/src/
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build add-on
+        uses: home-assistant/builder@2026.06.0
+        with:
+          args: |
+            --${{ matrix.arch }} \
+            --target /data/bambu-notifier \
+            --addon
