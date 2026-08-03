@@ -104,7 +104,14 @@ type printReport struct {
 	PrintErrorMsg string     `json:"fail_reason"`
 	HMSErrors     []hmsEntry `json:"hms"`
 	AMS           *amsStatus `json:"ams"`
+	IPCam         *ipcam     `json:"ipcam"`
 	Command       string     `json:"command"`
+}
+
+// ipcam holds the printer's camera advertisement. rtsp_url is set on
+// RTSP-capable models (X1/X2/H2/P2 series) when liveview is enabled.
+type ipcam struct {
+	RTSPUrl flexString `json:"rtsp_url"`
 }
 
 // hmsEntry represents a single HMS (Health Management System) alert.
@@ -151,6 +158,7 @@ type parsedReport struct {
 	HMSErrors  []string
 	AMSSlots   []event.AMSSlot
 	AMSTrayNow string
+	RTSPUrl    string
 }
 
 // parseReport parses raw MQTT payload JSON into a parsedReport.
@@ -189,6 +197,10 @@ func parseReport(data []byte) (*parsedReport, error) {
 			msg = fmt.Sprintf("HMS code=%d module=%s", h.Code, h.Module)
 		}
 		r.HMSErrors = append(r.HMSErrors, msg)
+	}
+
+	if p.IPCam != nil {
+		r.RTSPUrl = string(p.IPCam.RTSPUrl)
 	}
 
 	// AMS slots

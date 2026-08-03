@@ -29,7 +29,7 @@ printer entries needed:
 ```yaml
 discovery:
   enabled: true
-  camera_port: 6000   # optional: snapshots for imported P1/A1 printers
+  camera_port: 6000   # optional: enables snapshots for imported printers
 slack:
   - webhook_url: https://hooks.slack.com/services/...
 discord: []
@@ -82,7 +82,8 @@ printer:
 | `access_code` | yes | — | LAN access code from the printer LCD |
 | `port` | no | `8883` | MQTT/TLS port |
 | `tls_insecure_skip_verify` | no | `false` | Set `true` — Bambu printers use self-signed certificates |
-| `camera_port` | no | `0` | Camera snapshot port (typically `6000`); `0` disables snapshots. **P1/A1 series only** — X1/H2 series expose an RTSPS video stream instead, which this add-on does not support |
+| `camera_port` | no | `0` | Camera snapshot port (typically `6000`); `0` disables snapshots. **P1/A1 series only** |
+| `camera_rtsp` | no | `false` | Camera snapshots via the printer's RTSPS live stream — for **X1/X2/H2/P2 series**. Requires LAN Mode Liveview enabled on X1-series printers |
 | `reconnect_delay_seconds` | no | `30` | Base reconnect delay (exponential backoff, capped at 5 min) |
 
 ### Notifier options
@@ -125,7 +126,7 @@ every printer.
 | `log.format` | `text` | `text` or `json` |
 | `tail` | `false` | Also log every parsed MQTT report — useful when debugging a printer connection |
 | `discovery.enabled` | `false` | Import printers from the ha-bambulab integration |
-| `discovery.camera_port` | `0` | Camera snapshot port for imported printers (`6000` to enable). Applied only to P1/A1-series models; X1/H2 series are skipped automatically |
+| `discovery.camera_port` | `0` | Set to `6000` to enable camera snapshots for imported printers. P1/A1-series models use the JPEG chamber-image port; X1/X2/H2/P2 models grab a frame from their RTSPS stream instead |
 
 ## Troubleshooting
 

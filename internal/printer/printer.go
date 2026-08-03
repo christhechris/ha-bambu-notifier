@@ -36,6 +36,7 @@ type Config struct {
 	SerialNumber          string
 	AccessCode            string
 	CameraPort            int
+	CameraRTSP            bool
 	TLSInsecureSkipVerify bool
 	ReconnectDelaySeconds int
 	TailMode              bool
@@ -50,6 +51,11 @@ type printer struct {
 
 	msgCount         atomic.Uint64
 	snapshotDisabled atomic.Bool
+
+	// rtspURL is the last stream URL the printer advertised in a
+	// report. Only touched from handleMessage, which runs on the
+	// single readLoop goroutine.
+	rtspURL string
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -251,39 +257,78 @@ func (p *printer) handleMessage(_ string, payload []byte) {
 		}
 	}
 
-	if p.cfg.CameraPort > 0 && !p.snapshotDisabled.Load() &&
-		hasSnapshotEvent(events) {
-		snap, snapErr := camera.CaptureFrame(
-			p.cfg.Host, p.cfg.CameraPort,
-			p.cfg.AccessCode, p.cfg.TLSInsecureSkipVerify,
-		)
-		switch {
-		case snapErr == nil:
+	if report.RTSPUrl != "" {
+		p.rtspURL = report.RTSPUrl
+	}
+
+	if p.snapshotEnabled() && hasSnapshotEvent(events) {
+		snap, snapErr := p.captureSnapshot()
+		if snapErr != nil {
+			p.handleSnapshotError(snapErr)
+		} else {
 			for i := range events {
 				events[i].Snapshot = snap
 			}
-		case strings.Contains(snapErr.Error(), "handshake failure"):
-			// The printer refused the TLS handshake outright:
-			// this model does not speak the P1/A1 JPEG
-			// chamber-image protocol, so retrying is pointless.
-			p.snapshotDisabled.Store(true)
-			p.logger.Warn(
-				"camera snapshots disabled: printer rejected "+
-					"the TLS handshake — the camera_port JPEG "+
-					"protocol only exists on P1/A1-series "+
-					"printers; X1/H2 series use an RTSPS video "+
-					"stream this daemon does not support",
-				"camera_port", p.cfg.CameraPort,
-			)
-		default:
-			p.logger.Warn("camera snapshot failed",
-				"error", snapErr,
-			)
 		}
 	}
 
 	for _, evt := range events {
 		p.fanOut(evt)
+	}
+}
+
+func (p *printer) snapshotEnabled() bool {
+	if p.snapshotDisabled.Load() {
+		return false
+	}
+	return p.cfg.CameraRTSP || p.cfg.CameraPort > 0
+}
+
+// captureSnapshot grabs a JPEG using whichever camera protocol this
+// printer is configured for: the P1/A1 chamber-image service on
+// camera_port, or an ffmpeg frame-grab from the RTSPS stream.
+func (p *printer) captureSnapshot() ([]byte, error) {
+	if p.cfg.CameraRTSP {
+		return camera.CaptureRTSPFrame(
+			p.cfg.Host, p.cfg.AccessCode, p.rtspURL,
+		)
+	}
+	return camera.CaptureFrame(
+		p.cfg.Host, p.cfg.CameraPort,
+		p.cfg.AccessCode, p.cfg.TLSInsecureSkipVerify,
+	)
+}
+
+func (p *printer) handleSnapshotError(err error) {
+	msg := err.Error()
+
+	switch {
+	case !p.cfg.CameraRTSP &&
+		strings.Contains(msg, "handshake failure"):
+		// The printer refused the TLS handshake outright: this
+		// model does not speak the P1/A1 JPEG chamber-image
+		// protocol, so retrying is pointless.
+		p.snapshotDisabled.Store(true)
+		p.logger.Warn(
+			"camera snapshots disabled: printer rejected the "+
+				"TLS handshake — the camera_port JPEG protocol "+
+				"only exists on P1/A1-series printers; for "+
+				"X1/H2 series set camera_rtsp instead",
+			"camera_port", p.cfg.CameraPort,
+		)
+	case strings.Contains(msg, "ffmpeg not found"):
+		p.snapshotDisabled.Store(true)
+		p.logger.Warn(
+			"camera snapshots disabled: ffmpeg is not " +
+				"installed (required for RTSP frame grabs)",
+		)
+	case p.cfg.CameraRTSP:
+		p.logger.Warn("camera snapshot failed — check that "+
+			"LAN Mode Liveview is enabled on the printer",
+			"error", err,
+		)
+	default:
+		p.logger.Warn("camera snapshot failed", "error", err)
 	}
 }
 

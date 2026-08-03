@@ -25,7 +25,7 @@ RUN set -e; \
 
 FROM ${BUILD_FROM}
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates ffmpeg
 
 COPY --from=builder /out/bambu-notifier /usr/local/bin/bambu-notifier
 

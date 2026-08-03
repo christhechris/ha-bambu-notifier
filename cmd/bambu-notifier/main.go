@@ -135,6 +135,7 @@ func buildPrinters(
 			SerialNumber:          pc.SerialNumber,
 			AccessCode:            pc.AccessCode,
 			CameraPort:            pc.CameraPort,
+			CameraRTSP:            pc.CameraRTSP,
 			TLSInsecureSkipVerify: pc.TLSInsecureSkipVerify,
 			ReconnectDelaySeconds: pc.ReconnectDelaySeconds,
 			TailMode:              tailMode || cfg.Tail,

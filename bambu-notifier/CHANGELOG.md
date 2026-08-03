@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0
+
+- Camera snapshots now work on X1/X2/H2/P2-series printers via their
+  RTSPS live stream (ffmpeg frame grab; ffmpeg is bundled in the
+  add-on image). With discovery, `discovery.camera_port` now enables
+  snapshots on every printer: P1/A1 models use the JPEG chamber-image
+  port as before, RTSP models grab a frame from their stream. Manual
+  printers use the new `camera_rtsp: true` option. Requires LAN Mode
+  Liveview enabled on X1-series printers.
+
 ## 1.2.2
 
 - Camera snapshots: the port-6000 JPEG protocol only exists on P1/A1

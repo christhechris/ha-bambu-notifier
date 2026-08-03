@@ -38,7 +38,9 @@ serial_number            = "AABBCC112233"
 access_code              = "12345678"
 tls_insecure_skip_verify = true           # Bambu uses self-signed certs
 reconnect_delay_seconds  = 30
-camera_port              = 6000          # camera snapshot port (0 = disabled)
+camera_port              = 6000          # camera snapshot port, P1/A1 series (0 = disabled)
+# camera_rtsp            = true          # snapshots via RTSPS stream for X1/X2/H2/P2
+#                                        # series; requires ffmpeg on PATH
 
 [printer.notifiers]
   [[printer.notifiers.discord]]

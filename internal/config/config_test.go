@@ -605,9 +605,13 @@ func TestMergeDiscovered(t *testing.T) {
 
 		assert.Equal(t, 4, added)
 		assert.Equal(t, 6000, cfg.Printers[0].CameraPort, "P1S supports chamber image")
+		assert.False(t, cfg.Printers[0].CameraRTSP)
 		assert.Equal(t, 0, cfg.Printers[1].CameraPort, "X1C uses RTSPS")
+		assert.True(t, cfg.Printers[1].CameraRTSP)
 		assert.Equal(t, 0, cfg.Printers[2].CameraPort, "H2D uses RTSPS")
+		assert.True(t, cfg.Printers[2].CameraRTSP)
 		assert.Equal(t, 6000, cfg.Printers[3].CameraPort, "unknown model still attempts")
+		assert.False(t, cfg.Printers[3].CameraRTSP)
 	})
 
 	t.Run("discovered printers get discovery and global notifiers", func(t *testing.T) {

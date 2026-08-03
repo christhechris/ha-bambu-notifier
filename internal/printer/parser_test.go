@@ -273,6 +273,26 @@ func TestParseReport_flexibleTypes(t *testing.T) {
 		assert.True(t, r.AMSSlots[0].InUse)
 	})
 
+	t.Run("captures advertised rtsp_url", func(t *testing.T) {
+		payload := `{
+			"print": {
+				"gcode_state": "RUNNING",
+				"subtask_name": "x.gcode",
+				"ipcam": {
+					"ipcam_dev": "1",
+					"rtsp_url": "rtsps://192.168.1.50/streaming/live/1"
+				}
+			}
+		}`
+
+		r, err := parseReport([]byte(payload))
+		require.NoError(t, err)
+
+		assert.Equal(t,
+			"rtsps://192.168.1.50/streaming/live/1", r.RTSPUrl,
+		)
+	})
+
 	t.Run("numeric fields sent as strings", func(t *testing.T) {
 		payload := `{
 			"print": {

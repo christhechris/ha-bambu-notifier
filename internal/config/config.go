@@ -79,6 +79,7 @@ type Printer struct {
 	SerialNumber          string    `toml:"serial_number" json:"serial_number"`
 	AccessCode            string    `toml:"access_code" json:"access_code"`
 	CameraPort            int       `toml:"camera_port" json:"camera_port"`
+	CameraRTSP            bool      `toml:"camera_rtsp" json:"camera_rtsp"`
 	TLSInsecureSkipVerify bool      `toml:"tls_insecure_skip_verify" json:"tls_insecure_skip_verify"`
 	ReconnectDelaySeconds int       `toml:"reconnect_delay_seconds" json:"reconnect_delay_seconds"`
 	Notifiers             Notifiers `toml:"notifiers" json:"notifiers"`
@@ -172,8 +173,14 @@ func (cfg *Config) MergeDiscovered(ds []DiscoveredPrinter) int {
 		}
 		known[d.Serial] = true
 
+		// camera_port > 0 means "the user wants snapshots":
+		// P1/A1 models use the JPEG chamber-image port, RTSP
+		// models (X1/X2/H2/P2) get an ffmpeg frame grab from
+		// their RTSPS stream instead.
 		cameraPort := cfg.Discovery.CameraPort
+		cameraRTSP := false
 		if !ChamberImageSupported(d.Model) {
+			cameraRTSP = cameraPort > 0
 			cameraPort = 0
 		}
 
@@ -183,6 +190,7 @@ func (cfg *Config) MergeDiscovered(ds []DiscoveredPrinter) int {
 			SerialNumber:          d.Serial,
 			AccessCode:            d.AccessCode,
 			CameraPort:            cameraPort,
+			CameraRTSP:            cameraRTSP,
 			TLSInsecureSkipVerify: true,
 			Notifiers:             notifiers,
 		})
