@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2
+
+- Camera snapshots: the port-6000 JPEG protocol only exists on P1/A1
+  series printers — X1/H2 series stream RTSPS instead (not supported).
+  Discovery now applies `discovery.camera_port` only to P1/A1-series
+  models, and a printer that rejects the camera TLS handshake disables
+  snapshots for that printer with one explanatory message instead of
+  warning on every event.
+
 ## 1.2.1
 
 - Fix: X1-series printers dropped the connection ~2 seconds after

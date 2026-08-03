@@ -132,6 +132,22 @@ type DiscoveredPrinter struct {
 	Host       string
 	Serial     string
 	AccessCode string
+	Model      string // Bambu device type, e.g. "P1S", "X1C", "H2D"
+}
+
+// ChamberImageSupported reports whether the model exposes the P1/A1
+// JPEG-over-TLS chamber image service on the camera port. X1/X2/H2/P2
+// series stream RTSPS instead, which this daemon does not support. An
+// unknown/empty model returns true so a configured camera port is
+// still attempted.
+func ChamberImageSupported(model string) bool {
+	if model == "" {
+		return true
+	}
+	m := strings.ToUpper(model)
+	return strings.HasPrefix(m, "P1") ||
+		strings.HasPrefix(m, "A1") ||
+		strings.HasPrefix(m, "A2")
 }
 
 // MergeDiscovered appends discovered printers that are not already
@@ -156,12 +172,17 @@ func (cfg *Config) MergeDiscovered(ds []DiscoveredPrinter) int {
 		}
 		known[d.Serial] = true
 
+		cameraPort := cfg.Discovery.CameraPort
+		if !ChamberImageSupported(d.Model) {
+			cameraPort = 0
+		}
+
 		cfg.Printers = append(cfg.Printers, Printer{
 			Name:                  d.Name,
 			Host:                  d.Host,
 			SerialNumber:          d.Serial,
 			AccessCode:            d.AccessCode,
-			CameraPort:            cfg.Discovery.CameraPort,
+			CameraPort:            cameraPort,
 			TLSInsecureSkipVerify: true,
 			Notifiers:             notifiers,
 		})

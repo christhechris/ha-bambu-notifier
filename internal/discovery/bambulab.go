@@ -33,7 +33,8 @@ type storageEntry struct {
 	Domain string `json:"domain"`
 	Title  string `json:"title"`
 	Data   struct {
-		Serial string `json:"serial"`
+		Serial     string `json:"serial"`
+		DeviceType string `json:"device_type"`
 	} `json:"data"`
 	Options struct {
 		Name       string `json:"name"`
@@ -101,6 +102,7 @@ func Printers(
 			Host:       e.Options.Host,
 			Serial:     serial,
 			AccessCode: e.Options.AccessCode,
+			Model:      e.Data.DeviceType,
 		})
 	}
 

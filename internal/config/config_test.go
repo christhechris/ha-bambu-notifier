@@ -585,6 +585,31 @@ func TestMergeDiscovered(t *testing.T) {
 		assert.Equal(t, "New", cfg.Printers[1].Name)
 	})
 
+	t.Run("camera port only applies to chamber-image models", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Discovery: Discovery{Enabled: true, CameraPort: 6000},
+		}
+
+		added := cfg.MergeDiscovered([]DiscoveredPrinter{
+			{Name: "P1S", Host: "10.0.0.1", Serial: "S1",
+				AccessCode: "a", Model: "P1S"},
+			{Name: "X1C", Host: "10.0.0.2", Serial: "S2",
+				AccessCode: "b", Model: "X1C"},
+			{Name: "H2D", Host: "10.0.0.3", Serial: "S3",
+				AccessCode: "c", Model: "H2D"},
+			{Name: "Unknown", Host: "10.0.0.4", Serial: "S4",
+				AccessCode: "d"},
+		})
+
+		assert.Equal(t, 4, added)
+		assert.Equal(t, 6000, cfg.Printers[0].CameraPort, "P1S supports chamber image")
+		assert.Equal(t, 0, cfg.Printers[1].CameraPort, "X1C uses RTSPS")
+		assert.Equal(t, 0, cfg.Printers[2].CameraPort, "H2D uses RTSPS")
+		assert.Equal(t, 6000, cfg.Printers[3].CameraPort, "unknown model still attempts")
+	})
+
 	t.Run("discovered printers get discovery and global notifiers", func(t *testing.T) {
 		t.Parallel()
 

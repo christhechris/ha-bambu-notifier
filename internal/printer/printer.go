@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,7 +48,8 @@ type printer struct {
 	logger    *slog.Logger
 	tracker   *stateTracker
 
-	msgCount atomic.Uint64
+	msgCount         atomic.Uint64
+	snapshotDisabled atomic.Bool
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -249,19 +251,34 @@ func (p *printer) handleMessage(_ string, payload []byte) {
 		}
 	}
 
-	if p.cfg.CameraPort > 0 && hasSnapshotEvent(events) {
+	if p.cfg.CameraPort > 0 && !p.snapshotDisabled.Load() &&
+		hasSnapshotEvent(events) {
 		snap, snapErr := camera.CaptureFrame(
 			p.cfg.Host, p.cfg.CameraPort,
 			p.cfg.AccessCode, p.cfg.TLSInsecureSkipVerify,
 		)
-		if snapErr != nil {
-			p.logger.Warn("camera snapshot failed",
-				"error", snapErr,
-			)
-		} else {
+		switch {
+		case snapErr == nil:
 			for i := range events {
 				events[i].Snapshot = snap
 			}
+		case strings.Contains(snapErr.Error(), "handshake failure"):
+			// The printer refused the TLS handshake outright:
+			// this model does not speak the P1/A1 JPEG
+			// chamber-image protocol, so retrying is pointless.
+			p.snapshotDisabled.Store(true)
+			p.logger.Warn(
+				"camera snapshots disabled: printer rejected "+
+					"the TLS handshake — the camera_port JPEG "+
+					"protocol only exists on P1/A1-series "+
+					"printers; X1/H2 series use an RTSPS video "+
+					"stream this daemon does not support",
+				"camera_port", p.cfg.CameraPort,
+			)
+		default:
+			p.logger.Warn("camera snapshot failed",
+				"error", snapErr,
+			)
 		}
 	}
 

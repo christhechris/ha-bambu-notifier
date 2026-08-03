@@ -80,6 +80,7 @@ func TestPrinters(t *testing.T) {
 		assert.Equal(t, "192.168.1.50", p.Host)
 		assert.Equal(t, "AABBCC112233", p.Serial)
 		assert.Equal(t, "12345678", p.AccessCode)
+		assert.Equal(t, "P1S", p.Model)
 	})
 
 	t.Run("falls back to serial for missing name", func(t *testing.T) {
