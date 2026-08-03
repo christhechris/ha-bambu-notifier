@@ -8,11 +8,13 @@ format = "text"   # or "json" — overridden by LOG_FORMAT env var
 level  = "info"   # overridden by LOG_LEVEL env var
 
 # Global notifiers apply to every printer (in addition to any
-# per-printer lists below):
+# per-printer lists below). The optional `events` list limits which
+# event types a notifier receives (omit = all events):
 #
 # [[notifiers.discord]]
 # name        = "print-alerts"
 # webhook_url = "https://discord.com/api/webhooks/..."
+# events      = ["print_started", "print_finished", "print_failed"]
 
 # Import printers automatically from the ha-bambulab Home Assistant
 # integration (https://github.com/greghesp/ha-bambulab) instead of —

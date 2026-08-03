@@ -445,6 +445,51 @@ access_code   = "T2"
 		assert.Nil(t, cfg.FlatSlack)
 	})
 
+	t.Run("loads notifier event filters", func(t *testing.T) {
+		t.Parallel()
+
+		cfg, err := Load(writeConfig(t, `
+[[notifiers.slack]]
+webhook_url = "https://hooks.slack.com/services/T/B/x"
+events      = ["print_started", "print_finished", "print_failed"]
+
+[[printer]]
+name          = "P1"
+host          = "10.0.0.1"
+serial_number = "S1"
+access_code   = "T1"
+`))
+		require.NoError(t, err)
+
+		require.Len(t, cfg.Printers[0].Notifiers.Slack, 1)
+		assert.Equal(t,
+			[]string{
+				"print_started", "print_finished", "print_failed",
+			},
+			cfg.Printers[0].Notifiers.Slack[0].Events,
+		)
+	})
+
+	t.Run("rejects unknown event types", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Load(writeConfig(t, `
+[[notifiers.slack]]
+webhook_url = "https://hooks.slack.com/services/T/B/x"
+events      = ["print_done"]
+
+[[printer]]
+name          = "P1"
+host          = "10.0.0.1"
+serial_number = "S1"
+access_code   = "T1"
+`))
+		require.Error(t, err)
+
+		assert.Contains(t, err.Error(),
+			`notifiers.slack[0].events[0]: unknown event type "print_done"`)
+	})
+
 	t.Run("validates global notifiers", func(t *testing.T) {
 		t.Parallel()
 

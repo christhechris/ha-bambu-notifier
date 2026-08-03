@@ -19,6 +19,25 @@ const (
 	HMSAlert          Type = "hms_alert"
 )
 
+// Types returns all event types emitted by the state tracker.
+func Types() []Type {
+	return []Type{
+		PrintStarted, PrintFinished, PrintFailed,
+		PrintPaused, PrintResumed, CriticalError,
+		FilamentRunout, AMSChange, NozzleTempAnomaly, HMSAlert,
+	}
+}
+
+// ValidType reports whether t is a known event type.
+func ValidType(t Type) bool {
+	for _, known := range Types() {
+		if t == known {
+			return true
+		}
+	}
+	return false
+}
+
 // AMSSlot holds info about one AMS filament slot.
 type AMSSlot struct {
 	SlotID   int    `json:"slot_id"`

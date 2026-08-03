@@ -13,6 +13,7 @@ import (
 
 	"github.com/l33t0/bambu-notifier/internal/config"
 	"github.com/l33t0/bambu-notifier/internal/discovery"
+	"github.com/l33t0/bambu-notifier/internal/event"
 	"github.com/l33t0/bambu-notifier/internal/notifier"
 	"github.com/l33t0/bambu-notifier/internal/printer"
 )
@@ -151,24 +152,35 @@ func buildNotifiers(pc config.Printer) []notifier.Notifier {
 	notifiers := make([]notifier.Notifier, 0, cap)
 
 	for _, d := range n.Discord {
-		notifiers = append(notifiers,
+		notifiers = append(notifiers, notifier.WithEventFilter(
 			notifier.NewDiscord(d.Name, d.WebhookURL, d.Secret),
-		)
+			eventTypes(d.Events),
+		))
 	}
 
 	for _, s := range n.Slack {
-		notifiers = append(notifiers,
+		notifiers = append(notifiers, notifier.WithEventFilter(
 			notifier.NewSlack(s.Name, s.WebhookURL, s.Secret),
-		)
+			eventTypes(s.Events),
+		))
 	}
 
 	for _, t := range n.Telegram {
-		notifiers = append(notifiers,
+		notifiers = append(notifiers, notifier.WithEventFilter(
 			notifier.NewTelegram(t.Name, t.BotToken, t.ChatID),
-		)
+			eventTypes(t.Events),
+		))
 	}
 
 	return notifiers
+}
+
+func eventTypes(ss []string) []event.Type {
+	types := make([]event.Type, 0, len(ss))
+	for _, s := range ss {
+		types = append(types, event.Type(s))
+	}
+	return types
 }
 
 func setupLogger(l config.Log) *slog.Logger {

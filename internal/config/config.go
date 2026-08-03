@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/l33t0/bambu-notifier/internal/event"
 )
 
 // LogFormat represents the log output format.
@@ -35,25 +37,31 @@ type Log struct {
 	Format LogFormat `toml:"format" json:"format"`
 }
 
-// Discord holds Discord webhook notifier configuration.
+// Discord holds Discord webhook notifier configuration. Events, when
+// non-empty, limits which event types this notifier receives.
 type Discord struct {
-	Name       string `toml:"name" json:"name"`
-	WebhookURL string `toml:"webhook_url" json:"webhook_url"`
-	Secret     string `toml:"secret" json:"secret"`
+	Name       string   `toml:"name" json:"name"`
+	WebhookURL string   `toml:"webhook_url" json:"webhook_url"`
+	Secret     string   `toml:"secret" json:"secret"`
+	Events     []string `toml:"events" json:"events"`
 }
 
-// Slack holds Slack webhook notifier configuration.
+// Slack holds Slack webhook notifier configuration. Events, when
+// non-empty, limits which event types this notifier receives.
 type Slack struct {
-	Name       string `toml:"name" json:"name"`
-	WebhookURL string `toml:"webhook_url" json:"webhook_url"`
-	Secret     string `toml:"secret" json:"secret"`
+	Name       string   `toml:"name" json:"name"`
+	WebhookURL string   `toml:"webhook_url" json:"webhook_url"`
+	Secret     string   `toml:"secret" json:"secret"`
+	Events     []string `toml:"events" json:"events"`
 }
 
-// Telegram holds Telegram bot notifier configuration.
+// Telegram holds Telegram bot notifier configuration. Events, when
+// non-empty, limits which event types this notifier receives.
 type Telegram struct {
-	Name     string `toml:"name" json:"name"`
-	BotToken string `toml:"bot_token" json:"bot_token"`
-	ChatID   string `toml:"chat_id" json:"chat_id"`
+	Name     string   `toml:"name" json:"name"`
+	BotToken string   `toml:"bot_token" json:"bot_token"`
+	ChatID   string   `toml:"chat_id" json:"chat_id"`
+	Events   []string `toml:"events" json:"events"`
 }
 
 // Notifiers holds the notifier configurations for a single printer.
@@ -365,6 +373,11 @@ func validateNotifiers(prefix string, n Notifiers) error {
 				prefix, i,
 			)
 		}
+		if err := validateEvents(
+			fmt.Sprintf("%s.discord[%d]", prefix, i), d.Events,
+		); err != nil {
+			return err
+		}
 	}
 
 	for i, s := range n.Slack {
@@ -373,6 +386,11 @@ func validateNotifiers(prefix string, n Notifiers) error {
 				"%s.slack[%d]: webhook_url is required",
 				prefix, i,
 			)
+		}
+		if err := validateEvents(
+			fmt.Sprintf("%s.slack[%d]", prefix, i), s.Events,
+		); err != nil {
+			return err
 		}
 	}
 
@@ -390,7 +408,26 @@ func validateNotifiers(prefix string, n Notifiers) error {
 				prefix, i,
 			)
 		}
+
+		if err := validateEvents(
+			fmt.Sprintf("%s.telegram[%d]", prefix, i), t.Events,
+		); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func validateEvents(prefix string, events []string) error {
+	for i, e := range events {
+		if !event.ValidType(event.Type(e)) {
+			return fmt.Errorf(
+				"%s.events[%d]: unknown event type %q "+
+					"(valid: %v)",
+				prefix, i, e, event.Types(),
+			)
+		}
+	}
 	return nil
 }

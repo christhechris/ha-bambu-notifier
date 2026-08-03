@@ -92,6 +92,24 @@ printer:
   `X-Hub-Signature-256` header.
 - **telegram**: `bot_token` and `chat_id` (both required), optional `name`.
 
+Every notifier also takes an optional `events` list to limit which
+event types it receives. Omit it to receive everything. Example —
+only start, finish, and stopped-due-to-error:
+
+```yaml
+slack:
+  - webhook_url: https://hooks.slack.com/services/...
+    events:
+      - print_started
+      - print_finished
+      - print_failed
+```
+
+Valid values: `print_started`, `print_finished`, `print_failed`,
+`print_paused`, `print_resumed`, `critical_error`, `filament_runout`,
+`ams_change`, `nozzle_temp_anomaly`, `hms_alert`. See the repository
+README's "Supported Events" table for what triggers each.
+
 Setup guides for each service are in the
 [repository docs](https://github.com/christhechris/ha-bambu-notifier/tree/master/docs).
 

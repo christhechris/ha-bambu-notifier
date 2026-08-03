@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+- Notifiers accept an optional `events` list to choose which event
+  types they receive (e.g. `events: [print_started, print_finished,
+  print_failed]`). Omitted = all events, as before.
+
 ## 1.1.1
 
 - Fix: H2D (and other newer-firmware) MQTT reports were dropped because
