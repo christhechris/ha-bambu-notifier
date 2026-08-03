@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.1
+
+- Fix: X1-series printers dropped the connection ~2 seconds after
+  subscribe, in a loop. The daemon used the printer serial as its MQTT
+  client id, colliding with the printer firmware's own internal MQTT
+  client and causing a session-takeover fight. A unique random client
+  id is now used per connection.
+
 ## 1.2.0
 
 - Notifiers accept an optional `events` list to choose which event

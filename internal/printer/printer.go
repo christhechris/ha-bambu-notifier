@@ -2,7 +2,9 @@ package printer
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"math"
@@ -198,8 +200,25 @@ func (p *printer) newClient() *mqttClient {
 	opts = append(opts, withTLSConfig(tlsCfg))
 
 	return newMQTTClient(
-		p.cfg.Host, p.cfg.Port, p.cfg.SerialNumber, opts...,
+		p.cfg.Host, p.cfg.Port, mqttClientID(), opts...,
 	)
+}
+
+// mqttClientID returns a unique MQTT client identifier. The printer
+// serial must NOT be used here: X1-series firmware's own internal
+// MQTT client appears to identify with the serial on the embedded
+// broker, so connecting with the same id triggers an MQTT session
+// takeover fight — the printer kicks our connection a couple of
+// seconds after we connect, over and over. A random id (like
+// ha-bambulab's "ha-bambulab-<uuid>") coexists fine.
+func mqttClientID() string {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf(
+			"bambu-notifier-%d", time.Now().UnixNano(),
+		)
+	}
+	return "bambu-notifier-" + hex.EncodeToString(b[:])
 }
 
 func (p *printer) handleMessage(_ string, payload []byte) {
