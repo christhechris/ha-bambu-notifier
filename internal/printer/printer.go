@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/l33t0/bambu-notifier/internal/camera"
@@ -43,6 +44,8 @@ type printer struct {
 	notifiers []notifier.Notifier
 	logger    *slog.Logger
 	tracker   *stateTracker
+
+	msgCount atomic.Uint64
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -149,8 +152,24 @@ func (p *printer) runLoop(ctx context.Context) {
 			p.keepAlive(connCtx, client)
 		}()
 
+		connStart := time.Now()
+		msgsBefore := p.msgCount.Load()
+
 		if err := client.readLoop(); err != nil {
 			p.logger.Error("mqtt read loop exited", "error", err)
+		}
+
+		if p.msgCount.Load() == msgsBefore &&
+			time.Since(connStart) < 10*time.Second {
+			p.logger.Warn(
+				"printer dropped the connection right after " +
+					"subscribe without sending any reports — " +
+					"if this is an X1 series, enable LAN Mode " +
+					"Developer Mode in the printer's network " +
+					"settings (required by newer firmware for " +
+					"third-party access); also verify the " +
+					"access code matches the printer LCD",
+			)
 		}
 
 		connCancel()
@@ -184,6 +203,8 @@ func (p *printer) newClient() *mqttClient {
 }
 
 func (p *printer) handleMessage(_ string, payload []byte) {
+	p.msgCount.Add(1)
+
 	report, err := parseReport(payload)
 	if err != nil {
 		p.logger.Debug("ignoring unparseable report", "error", err)

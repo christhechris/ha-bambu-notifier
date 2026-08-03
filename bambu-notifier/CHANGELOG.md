@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1
+
+- Fix: H2D (and other newer-firmware) MQTT reports were dropped because
+  some fields changed JSON type between printer generations (e.g.
+  `insert_flag` sent as bool instead of string). The parser now accepts
+  string/number/bool variants for all scalar fields instead of
+  discarding the whole report.
+- When a printer accepts the connection but drops it immediately
+  without sending reports, the log now explains the likely cause
+  (X1 series firmware requiring LAN Mode Developer Mode for
+  third-party access) instead of a bare EOF.
+
 ## 1.1.0
 
 - Notifiers are now configured once at the top level (`discord`, `slack`,

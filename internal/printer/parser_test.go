@@ -231,6 +231,89 @@ func TestParseReport(t *testing.T) {
 	}
 }
 
+func TestParseReport_flexibleTypes(t *testing.T) {
+	t.Run("H2D report with bool insert_flag and numeric ids", func(t *testing.T) {
+		// The H2D sends insert_flag as bool and ids as numbers
+		// where X1/P1 firmware sends strings; one odd field must
+		// not drop the whole report.
+		payload := `{
+			"print": {
+				"gcode_state": "RUNNING",
+				"subtask_name": "bracket.gcode",
+				"mc_percent": 61,
+				"mc_remaining_time": 30,
+				"nozzle_temper": 220.1,
+				"nozzle_target_temper": 220.0,
+				"bed_temper": 55.0,
+				"bed_target_temper": 55.0,
+				"ams": {
+					"insert_flag": false,
+					"power_on_flag": true,
+					"tray_now": 0,
+					"ams": [
+						{
+							"id": 0,
+							"tray": [
+								{"id": 0, "tray_type": "PLA", "tray_color": "FF0000FF", "tray_sub_brands": "PLA Basic", "remain": 80}
+							]
+						}
+					]
+				}
+			}
+		}`
+
+		r, err := parseReport([]byte(payload))
+		require.NoError(t, err)
+
+		assert.Equal(t, event.StateRunning, r.GcodeState)
+		assert.Equal(t, 61, r.Progress)
+		assert.Equal(t, "0", r.AMSTrayNow)
+		require.Len(t, r.AMSSlots, 1)
+		assert.Equal(t, "PLA Basic", r.AMSSlots[0].Material)
+		assert.True(t, r.AMSSlots[0].InUse)
+	})
+
+	t.Run("numeric fields sent as strings", func(t *testing.T) {
+		payload := `{
+			"print": {
+				"gcode_state": "RUNNING",
+				"subtask_name": "x.gcode",
+				"mc_percent": "42",
+				"mc_remaining_time": "95",
+				"nozzle_temper": "215.5",
+				"print_error": "0"
+			}
+		}`
+
+		r, err := parseReport([]byte(payload))
+		require.NoError(t, err)
+
+		assert.Equal(t, 42, r.Progress)
+		assert.Equal(t, "1h35m", r.ETA)
+		assert.InDelta(t, 215.5, r.Thermals.NozzleActual, 0.001)
+		assert.Equal(t, 0, r.ErrorCode)
+	})
+
+	t.Run("garbage scalar types parse as zero values", func(t *testing.T) {
+		payload := `{
+			"print": {
+				"gcode_state": "RUNNING",
+				"subtask_name": "x.gcode",
+				"mc_percent": true,
+				"nozzle_temper": null,
+				"print_error": {"weird": 1}
+			}
+		}`
+
+		r, err := parseReport([]byte(payload))
+		require.NoError(t, err)
+
+		assert.Equal(t, 0, r.Progress)
+		assert.Zero(t, r.Thermals.NozzleActual)
+		assert.Equal(t, 0, r.ErrorCode)
+	})
+}
+
 func TestFormatETA(t *testing.T) {
 	tests := []struct {
 		name    string

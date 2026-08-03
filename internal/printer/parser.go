@@ -3,9 +3,83 @@ package printer
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/l33t0/bambu-notifier/internal/event"
 )
+
+// Bambu firmware is inconsistent about JSON scalar types across
+// printer generations (e.g. the H2D sends fields as bool or number
+// where the X1/P1 send strings). The flex* types below accept any
+// scalar representation instead of failing the whole report.
+
+// flexString accepts a JSON string, number, bool, or null.
+type flexString string
+
+func (f *flexString) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		*f = flexString(s)
+		return nil
+	}
+	if string(b) == "null" {
+		*f = ""
+		return nil
+	}
+	*f = flexString(b)
+	return nil
+}
+
+// flexInt accepts a JSON number (int or float) or numeric string;
+// anything else parses as 0.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(b []byte) error {
+	var n float64
+	if err := json.Unmarshal(b, &n); err == nil {
+		*f = flexInt(n)
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		if v, err := strconv.ParseFloat(
+			strings.TrimSpace(s), 64,
+		); err == nil {
+			*f = flexInt(v)
+			return nil
+		}
+	}
+
+	*f = 0
+	return nil
+}
+
+// flexFloat accepts a JSON number or numeric string; anything else
+// parses as 0.
+type flexFloat float64
+
+func (f *flexFloat) UnmarshalJSON(b []byte) error {
+	var n float64
+	if err := json.Unmarshal(b, &n); err == nil {
+		*f = flexFloat(n)
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		if v, err := strconv.ParseFloat(
+			strings.TrimSpace(s), 64,
+		); err == nil {
+			*f = flexFloat(v)
+			return nil
+		}
+	}
+
+	*f = 0
+	return nil
+}
 
 // bambuReport is the top-level JSON structure from a Bambu printer MQTT report.
 type bambuReport struct {
@@ -13,57 +87,54 @@ type bambuReport struct {
 }
 
 // printReport contains the print status fields from a Bambu report.
+// Only fields this daemon consumes are decoded; unknown fields are
+// ignored by encoding/json.
 type printReport struct {
 	GcodeState    string     `json:"gcode_state"`
 	GcodeFile     string     `json:"gcode_file"`
 	Subtask       string     `json:"subtask_name"`
-	MCPercent     int        `json:"mc_percent"`
-	MCRemainingT  int        `json:"mc_remaining_time"`
-	NozzleTemper  float64    `json:"nozzle_temper"`
-	NozzleTarget  float64    `json:"nozzle_target_temper"`
-	BedTemper     float64    `json:"bed_temper"`
-	BedTarget     float64    `json:"bed_target_temper"`
+	MCPercent     flexInt    `json:"mc_percent"`
+	MCRemainingT  flexInt    `json:"mc_remaining_time"`
+	NozzleTemper  flexFloat  `json:"nozzle_temper"`
+	NozzleTarget  flexFloat  `json:"nozzle_target_temper"`
+	BedTemper     flexFloat  `json:"bed_temper"`
+	BedTarget     flexFloat  `json:"bed_target_temper"`
 	NozzleType    string     `json:"nozzle_type"`
-	PrintError    int        `json:"print_error"`
+	PrintError    flexInt    `json:"print_error"`
 	PrintErrorMsg string     `json:"fail_reason"`
 	HMSErrors     []hmsEntry `json:"hms"`
 	AMS           *amsStatus `json:"ams"`
-	AMSStatus     int        `json:"ams_status"`
 	Command       string     `json:"command"`
 }
 
 // hmsEntry represents a single HMS (Health Management System) alert.
 type hmsEntry struct {
-	Attr     int    `json:"attr"`
-	Code     int    `json:"code"`
-	Module   string `json:"module"`
-	Severity string `json:"severity"`
-	Msg      string `json:"msg"`
+	Attr     flexInt    `json:"attr"`
+	Code     flexInt    `json:"code"`
+	Module   flexString `json:"module"`
+	Severity flexString `json:"severity"`
+	Msg      flexString `json:"msg"`
 }
 
 // amsStatus represents the AMS (Automatic Material System) state.
 type amsStatus struct {
-	AMS      []amsUnit `json:"ams"`
-	TrayNow  string    `json:"tray_now"`
-	TrayPre  string    `json:"tray_pre"`
-	TrayTar  string    `json:"tray_tar"`
-	InsertID string    `json:"insert_flag"`
-	Version  int       `json:"version"`
+	AMS     []amsUnit  `json:"ams"`
+	TrayNow flexString `json:"tray_now"`
 }
 
 // amsUnit represents one AMS unit with 4 trays.
 type amsUnit struct {
-	ID   string    `json:"id"`
-	Tray []amsTray `json:"tray"`
+	ID   flexString `json:"id"`
+	Tray []amsTray  `json:"tray"`
 }
 
 // amsTray represents a single filament tray in an AMS unit.
 type amsTray struct {
-	ID       string `json:"id"`
-	TrayType string `json:"tray_type"`
-	Color    string `json:"tray_color"`
-	Material string `json:"tray_sub_brands"`
-	Remain   int    `json:"remain"`
+	ID       flexString `json:"id"`
+	TrayType flexString `json:"tray_type"`
+	Color    flexString `json:"tray_color"`
+	Material flexString `json:"tray_sub_brands"`
+	Remain   flexInt    `json:"remain"`
 }
 
 // parsedReport is the structured output from parsing a Bambu MQTT report.
@@ -97,23 +168,23 @@ func parseReport(data []byte) (*parsedReport, error) {
 	r := &parsedReport{
 		GcodeState: event.GcodeState(p.GcodeState),
 		Filename:   filenameFromReport(p),
-		Progress:   p.MCPercent,
-		ETA:        formatETA(p.MCRemainingT),
+		Progress:   int(p.MCPercent),
+		ETA:        formatETA(int(p.MCRemainingT)),
 		NozzleType: p.NozzleType,
 		Source:     sourceFromCommand(p.Command),
 		Thermals: event.Thermals{
-			NozzleActual: p.NozzleTemper,
-			NozzleTarget: p.NozzleTarget,
-			BedActual:    p.BedTemper,
-			BedTarget:    p.BedTarget,
+			NozzleActual: float64(p.NozzleTemper),
+			NozzleTarget: float64(p.NozzleTarget),
+			BedActual:    float64(p.BedTemper),
+			BedTarget:    float64(p.BedTarget),
 		},
-		ErrorCode: p.PrintError,
+		ErrorCode: int(p.PrintError),
 		ErrorMsg:  p.PrintErrorMsg,
 	}
 
 	// HMS errors
 	for _, h := range p.HMSErrors {
-		msg := h.Msg
+		msg := string(h.Msg)
 		if msg == "" {
 			msg = fmt.Sprintf("HMS code=%d module=%s", h.Code, h.Module)
 		}
@@ -122,15 +193,15 @@ func parseReport(data []byte) (*parsedReport, error) {
 
 	// AMS slots
 	if p.AMS != nil {
-		r.AMSTrayNow = p.AMS.TrayNow
+		r.AMSTrayNow = string(p.AMS.TrayNow)
 		for _, unit := range p.AMS.AMS {
 			for _, tray := range unit.Tray {
 				slot := event.AMSSlot{
-					Material: tray.Material,
-					ColorHex: tray.Color,
+					Material: string(tray.Material),
+					ColorHex: string(tray.Color),
 					InUse:    tray.ID == p.AMS.TrayNow,
 				}
-				if id, err := parseIntSafe(tray.ID); err == nil {
+				if id, err := parseIntSafe(string(tray.ID)); err == nil {
 					slot.SlotID = id
 				}
 				r.AMSSlots = append(r.AMSSlots, slot)
