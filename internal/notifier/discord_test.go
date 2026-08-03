@@ -137,24 +137,14 @@ func TestDiscord_Send(t *testing.T) {
 			require.Len(t, payload.Embeds, 1)
 			embed := payload.Embeds[0]
 
-			assert.NotEmpty(t, embed.Title)
+			assert.Contains(t, embed.Title, "X1C-Workshop")
 			assert.Equal(t, tt.wantColor, embed.Color)
-			assert.GreaterOrEqual(t, len(embed.Fields), 7, "should have at least 7 base fields")
-
-			fieldNames := make(map[string]string)
-			for _, f := range embed.Fields {
-				fieldNames[f.Name] = f.Value
-			}
-
-			assert.Equal(t, "X1C-Workshop", fieldNames["Printer Name"])
-			assert.Equal(t, "benchy.3mf", fieldNames["Filename"])
-			assert.Contains(t, fieldNames["Progress"], "42%")
-			assert.Contains(t, fieldNames["Thermals"], "220.5")
-			assert.Contains(t, fieldNames["AMS Slots"], "PLA")
-			assert.Contains(t, fieldNames["AMS Slots"], "IN USE")
+			assert.Contains(t, embed.Description, "benchy.3mf")
+			assert.Contains(t, embed.Description, "42%")
+			assert.Contains(t, embed.Description, "ETA 1h 23m")
 
 			if tt.wantError {
-				assert.Contains(t, fieldNames["Error"], "nozzle clog")
+				assert.Contains(t, embed.Description, "nozzle clog")
 			}
 
 			if tt.secret != "" {

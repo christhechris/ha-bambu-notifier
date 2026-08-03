@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/l33t0/bambu-notifier/internal/event"
@@ -72,15 +73,9 @@ func TestTelegram_Send(t *testing.T) {
 			assert.Contains(t, payload.Text, "X1C-Workshop")
 			assert.Contains(t, payload.Text, "benchy.3mf")
 			assert.Contains(t, payload.Text, "42%")
-			assert.Contains(t, payload.Text, "220.5")
-
-			if tt.event.AMSSlots != nil {
-				assert.Contains(t, payload.Text, "AMS Slots")
-				assert.Contains(t, payload.Text, "PLA")
-				assert.Contains(t, payload.Text, "IN USE")
-			} else {
-				assert.NotContains(t, payload.Text, "AMS Slots")
-			}
+			assert.Contains(t, payload.Text, "ETA 1h 23m")
+			assert.Len(t, strings.Split(payload.Text, "\n"), 2,
+				"message should be exactly two lines")
 
 			if tt.wantError {
 				assert.Contains(t, payload.Text, "nozzle clog")

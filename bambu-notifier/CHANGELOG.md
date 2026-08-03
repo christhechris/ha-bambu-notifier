@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+
+- Notification messages are now compact — two lines: event and printer
+  on the first, then filename · progress · ETA (and the error message
+  for failure events). Thermals, nozzle type, source, and AMS details
+  are no longer included. Snapshots attach as before.
+
 ## 1.3.0
 
 - Camera snapshots now work on X1/X2/H2/P2-series printers via their

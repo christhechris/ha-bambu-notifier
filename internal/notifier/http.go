@@ -11,10 +11,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strings"
 	"time"
-
-	"github.com/l33t0/bambu-notifier/internal/event"
 )
 
 var httpClient = &http.Client{Timeout: 15 * time.Second}
@@ -128,18 +125,4 @@ func computeHMAC(body []byte, secret string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
-}
-
-func formatAMSSlots(slots []event.AMSSlot) string {
-	var sb strings.Builder
-	for _, s := range slots {
-		inUse := ""
-		if s.InUse {
-			inUse = " [IN USE]"
-		}
-		fmt.Fprintf(&sb, "Slot %d: %s (#%s)%s\n",
-			s.SlotID, s.Material, s.ColorHex, inUse,
-		)
-	}
-	return sb.String()
 }

@@ -3,7 +3,6 @@ package notifier
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/l33t0/bambu-notifier/internal/event"
 )
@@ -66,28 +65,7 @@ type telegramPayload struct {
 }
 
 func (t *telegram) buildMessage(ev event.Event) string {
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "<b>%s</b>\n\n", formatTitle(ev.Type))
-	fmt.Fprintf(&sb, "<b>Printer:</b> <code>%s</code>\n", ev.PrinterName)
-	fmt.Fprintf(&sb, "<b>Filename:</b> <code>%s</code>\n", ev.Filename)
-	fmt.Fprintf(&sb, "<b>Progress:</b> %d%%\n", ev.Progress)
-	fmt.Fprintf(&sb, "<b>ETA:</b> %s\n", ev.ETA)
-	fmt.Fprintf(&sb, "<b>Nozzle Type:</b> %s\n", ev.NozzleType)
-	fmt.Fprintf(&sb, "<b>Source:</b> %s\n", ev.Source)
-	fmt.Fprintf(&sb, "\n<b>Thermals</b>\n")
-	fmt.Fprintf(&sb, "<i>Nozzle:</i> %.1f/%.1f °C\n",
-		ev.Thermals.NozzleActual, ev.Thermals.NozzleTarget)
-	fmt.Fprintf(&sb, "<i>Bed:</i> %.1f/%.1f °C\n",
-		ev.Thermals.BedActual, ev.Thermals.BedTarget)
-
-	if len(ev.AMSSlots) > 0 {
-		sb.WriteString("\n<b>AMS Slots</b>\n")
-		sb.WriteString(formatAMSSlots(ev.AMSSlots))
-	}
-
-	if ev.ErrorMsg != "" {
-		fmt.Fprintf(&sb, "\n<b>Error:</b> %s\n", ev.ErrorMsg)
-	}
-
-	return sb.String()
+	return fmt.Sprintf("<b>%s</b> — %s\n%s",
+		formatTitle(ev.Type), ev.PrinterName, summaryLine(ev),
+	)
 }

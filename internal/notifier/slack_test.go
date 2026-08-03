@@ -64,53 +64,23 @@ func TestSlack_Send(t *testing.T) {
 			var payload slackPayload
 			require.NoError(t, json.Unmarshal(gotBody, &payload))
 
-			require.NotEmpty(t, payload.Blocks)
+			// A single compact section block.
+			require.Len(t, payload.Blocks, 1)
+			block := payload.Blocks[0]
+			assert.Equal(t, "section", block.Type)
+			require.NotNil(t, block.Text)
+			assert.Equal(t, "mrkdwn", block.Text.Type)
 
-			// First block is the header.
-			assert.Equal(t, "header", payload.Blocks[0].Type)
-			assert.NotNil(t, payload.Blocks[0].Text)
-			assert.Equal(t, "plain_text", payload.Blocks[0].Text.Type)
-			assert.NotEmpty(t, payload.Blocks[0].Text.Text)
-
-			// Second block is a section with fields.
-			assert.Equal(t, "section", payload.Blocks[1].Type)
-			require.NotEmpty(t, payload.Blocks[1].Fields)
-
-			fieldTexts := ""
-			for _, f := range payload.Blocks[1].Fields {
-				fieldTexts += f.Text + " "
-			}
-			assert.Contains(t, fieldTexts, "X1C-Workshop")
-			assert.Contains(t, fieldTexts, "benchy.3mf")
-			assert.Contains(t, fieldTexts, "42%")
-
-			// Divider block.
-			assert.Equal(t, "divider", payload.Blocks[2].Type)
-
-			// Thermals section.
-			assert.Equal(t, "section", payload.Blocks[3].Type)
-			assert.Contains(t, payload.Blocks[3].Text.Text, "220.5")
-			assert.Contains(t, payload.Blocks[3].Text.Text, "Thermals")
-
-			// AMS section.
-			found := false
-			for _, b := range payload.Blocks {
-				if b.Text != nil && b.Type == "section" && strings.Contains(b.Text.Text, "AMS") {
-					found = true
-					assert.Contains(t, b.Text.Text, "PLA")
-					assert.Contains(t, b.Text.Text, "IN USE")
-				}
-			}
-			assert.True(t, found, "should have AMS section")
+			text := block.Text.Text
+			assert.Contains(t, text, "X1C-Workshop")
+			assert.Contains(t, text, "benchy.3mf")
+			assert.Contains(t, text, "42%")
+			assert.Contains(t, text, "ETA 1h 23m")
+			assert.Len(t, strings.Split(text, "\n"), 2,
+				"message should be exactly two lines")
 
 			if tt.wantError {
-				errorFound := false
-				for _, b := range payload.Blocks {
-					if b.Text != nil && strings.Contains(b.Text.Text, "nozzle clog") {
-						errorFound = true
-					}
-				}
-				assert.True(t, errorFound, "should have error block")
+				assert.Contains(t, text, "nozzle clog")
 			}
 
 			if tt.secret != "" {

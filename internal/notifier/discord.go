@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/l33t0/bambu-notifier/internal/event"
 )
@@ -65,56 +64,25 @@ type discordPayload struct {
 }
 
 type discordEmbed struct {
-	Title  string        `json:"title"`
-	Color  int           `json:"color"`
-	Fields []embedField  `json:"fields"`
-	Image  *discordImage `json:"image,omitempty"`
+	Title       string        `json:"title"`
+	Description string        `json:"description"`
+	Color       int           `json:"color"`
+	Image       *discordImage `json:"image,omitempty"`
 }
 
 type discordImage struct {
 	URL string `json:"url"`
 }
 
-type embedField struct {
-	Name   string `json:"name"`
-	Value  string `json:"value"`
-	Inline bool   `json:"inline"`
-}
-
 func (d *discord) buildPayload(ev event.Event) discordPayload {
-	fields := []embedField{
-		{Name: "Printer Name", Value: ev.PrinterName, Inline: true},
-		{Name: "Filename", Value: ev.Filename, Inline: true},
-		{Name: "Progress", Value: fmt.Sprintf("%d%%", ev.Progress), Inline: true},
-		{Name: "ETA", Value: ev.ETA, Inline: true},
-		{Name: "Nozzle Type", Value: ev.NozzleType, Inline: true},
-		{Name: "Source", Value: ev.Source, Inline: true},
-		{Name: "Thermals", Value: fmt.Sprintf(
-			"Nozzle: %.1f/%.1f °C\nBed: %.1f/%.1f °C",
-			ev.Thermals.NozzleActual, ev.Thermals.NozzleTarget,
-			ev.Thermals.BedActual, ev.Thermals.BedTarget,
-		), Inline: false},
-	}
-
-	if len(ev.AMSSlots) > 0 {
-		fields = append(fields, embedField{
-			Name:  "AMS Slots",
-			Value: formatAMSSlots(ev.AMSSlots),
-		})
-	}
-
-	if ev.ErrorMsg != "" {
-		fields = append(fields, embedField{
-			Name: "Error", Value: ev.ErrorMsg,
-		})
-	}
-
 	return discordPayload{
 		Embeds: []discordEmbed{
 			{
-				Title:  formatTitle(ev.Type),
-				Color:  eventColor(ev.Type),
-				Fields: fields,
+				Title: fmt.Sprintf("%s — %s",
+					formatTitle(ev.Type), ev.PrinterName,
+				),
+				Description: summaryLine(ev),
+				Color:       eventColor(ev.Type),
 			},
 		},
 	}
@@ -133,11 +101,4 @@ func eventColor(t event.Type) int {
 	default:
 		return colorYellow
 	}
-}
-
-func formatTitle(t event.Type) string {
-	s := string(t)
-	s = strings.ReplaceAll(s, "_", " ")
-	s = strings.ToUpper(s[:1]) + s[1:]
-	return s
 }

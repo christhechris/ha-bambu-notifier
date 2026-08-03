@@ -37,9 +37,8 @@ type slackPayload struct {
 }
 
 type slackBlock struct {
-	Type   string      `json:"type"`
-	Text   *slackText  `json:"text,omitempty"`
-	Fields []slackText `json:"fields,omitempty"`
+	Type string     `json:"type"`
+	Text *slackText `json:"text,omitempty"`
 }
 
 type slackText struct {
@@ -48,63 +47,19 @@ type slackText struct {
 }
 
 func (s *slack) buildPayload(ev event.Event) slackPayload {
-	blocks := []slackBlock{
-		{
-			Type: "header",
-			Text: &slackText{
-				Type: "plain_text",
-				Text: formatTitle(ev.Type),
-			},
-		},
-		{
-			Type: "section",
-			Fields: []slackText{
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Printer:*\n%s", ev.PrinterName)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Filename:*\n%s", ev.Filename)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Progress:*\n%d%%", ev.Progress)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*ETA:*\n%s", ev.ETA)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Nozzle Type:*\n%s", ev.NozzleType)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Source:*\n%s", ev.Source)},
-			},
-		},
-		{Type: "divider"},
-		{
-			Type: "section",
-			Text: &slackText{
-				Type: "mrkdwn",
-				Text: fmt.Sprintf(
-					"*Thermals*\nNozzle: %.1f/%.1f °C | Bed: %.1f/%.1f °C",
-					ev.Thermals.NozzleActual, ev.Thermals.NozzleTarget,
-					ev.Thermals.BedActual, ev.Thermals.BedTarget,
-				),
-			},
-		},
-	}
-
-	if len(ev.AMSSlots) > 0 {
-		blocks = append(blocks, slackBlock{
-			Type: "section",
-			Text: &slackText{
-				Type: "mrkdwn",
-				Text: "*AMS Slots*\n" + formatAMSSlots(ev.AMSSlots),
-			},
-		})
-	}
-
-	if ev.ErrorMsg != "" {
-		blocks = append(blocks,
-			slackBlock{Type: "divider"},
-			slackBlock{
+	return slackPayload{
+		Blocks: []slackBlock{
+			{
 				Type: "section",
 				Text: &slackText{
 					Type: "mrkdwn",
-					Text: fmt.Sprintf(
-						":warning: *Error:* %s", ev.ErrorMsg,
+					Text: fmt.Sprintf("*%s* — %s\n%s",
+						formatTitle(ev.Type),
+						ev.PrinterName,
+						summaryLine(ev),
 					),
 				},
 			},
-		)
+		},
 	}
-
-	return slackPayload{Blocks: blocks}
 }
