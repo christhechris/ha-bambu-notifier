@@ -17,10 +17,10 @@ func formatTitle(t event.Type) string {
 }
 
 // summaryLine builds the compact one-line summary shared by all
-// notifiers: "<filename> · <progress>% · ETA <eta>[ · <error>]",
-// skipping empty parts.
+// notifiers: "<filename> · <progress>% · ETA <eta>[ · <reason>][ ·
+// <error>]", skipping empty parts.
 func summaryLine(ev event.Event) string {
-	parts := make([]string, 0, 4)
+	parts := make([]string, 0, 5)
 
 	if ev.Filename != "" {
 		parts = append(parts, ev.Filename)
@@ -29,7 +29,10 @@ func summaryLine(ev event.Event) string {
 	if ev.ETA != "" {
 		parts = append(parts, "ETA "+ev.ETA)
 	}
-	if ev.ErrorMsg != "" {
+	if ev.Reason != "" {
+		parts = append(parts, ev.Reason)
+	}
+	if ev.ErrorMsg != "" && ev.ErrorMsg != ev.Reason {
 		parts = append(parts, ev.ErrorMsg)
 	}
 

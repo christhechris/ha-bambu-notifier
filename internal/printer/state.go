@@ -60,6 +60,9 @@ func (st *stateTracker) update(r *parsedReport) []event.Event {
 		if evt, ok := st.transitionEvent(
 			st.prevState, r.GcodeState, base,
 		); ok {
+			if evt.Type == event.PrintPaused {
+				evt.Reason = pauseReason(r)
+			}
 			events = append(events, evt)
 		}
 		st.prevState = r.GcodeState

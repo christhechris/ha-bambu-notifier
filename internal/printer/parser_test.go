@@ -273,6 +273,18 @@ func TestParseReport_flexibleTypes(t *testing.T) {
 		assert.True(t, r.AMSSlots[0].InUse)
 	})
 
+	t.Run("parses stg_cur as number or string", func(t *testing.T) {
+		numeric := `{"print": {"gcode_state": "PAUSE", "subtask_name": "x.gcode", "stg_cur": 6}}`
+		r, err := parseReport([]byte(numeric))
+		require.NoError(t, err)
+		assert.Equal(t, 6, r.StageID)
+
+		stringy := `{"print": {"gcode_state": "PAUSE", "subtask_name": "x.gcode", "stg_cur": "16"}}`
+		r, err = parseReport([]byte(stringy))
+		require.NoError(t, err)
+		assert.Equal(t, 16, r.StageID)
+	})
+
 	t.Run("captures advertised rtsp_url", func(t *testing.T) {
 		payload := `{
 			"print": {

@@ -120,7 +120,7 @@ See [`config.example.toml`](config.example.toml) for all available options with 
 | `print_started` | State transitions to `RUNNING` or `PREPARE` (not from `PAUSE`) |
 | `print_finished` | State transitions to `FINISH` |
 | `print_failed` | State transitions to `FAILED` |
-| `print_paused` | State transitions to `PAUSE` |
+| `print_paused` | State transitions to `PAUSE` — includes the pause reason when the printer reports one (filament runout, user pause, nozzle clog, …) |
 | `print_resumed` | State transitions from `PAUSE` to `RUNNING` |
 | `critical_error` | `print_error` becomes non-zero (deduplicated per error code) |
 | `filament_runout` | Error code `0x07008001` detected |

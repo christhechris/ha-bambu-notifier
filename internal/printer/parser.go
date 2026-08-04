@@ -100,6 +100,7 @@ type printReport struct {
 	BedTemper     flexFloat  `json:"bed_temper"`
 	BedTarget     flexFloat  `json:"bed_target_temper"`
 	NozzleType    string     `json:"nozzle_type"`
+	StgCur        flexInt    `json:"stg_cur"`
 	PrintError    flexInt    `json:"print_error"`
 	PrintErrorMsg string     `json:"fail_reason"`
 	HMSErrors     []hmsEntry `json:"hms"`
@@ -159,6 +160,7 @@ type parsedReport struct {
 	AMSSlots   []event.AMSSlot
 	AMSTrayNow string
 	RTSPUrl    string
+	StageID    int
 }
 
 // parseReport parses raw MQTT payload JSON into a parsedReport.
@@ -188,6 +190,7 @@ func parseReport(data []byte) (*parsedReport, error) {
 		},
 		ErrorCode: int(p.PrintError),
 		ErrorMsg:  p.PrintErrorMsg,
+		StageID:   int(p.StgCur),
 	}
 
 	// HMS errors

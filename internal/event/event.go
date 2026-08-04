@@ -68,6 +68,7 @@ type Event struct {
 	AMSSlots    []AMSSlot `json:"ams_slots,omitempty"`
 	ErrorCode   int       `json:"error_code,omitempty"`
 	ErrorMsg    string    `json:"error_msg,omitempty"`
+	Reason      string    `json:"reason,omitempty"`
 	HMSErrors   []string  `json:"hms_errors,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
 	Snapshot    []byte    `json:"-"` // JPEG camera frame, omitted from JSON

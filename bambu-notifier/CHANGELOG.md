@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+- Paused notifications now include the reason when the printer reports
+  one — e.g. "filament runout", "paused by user", "nozzle clog
+  detected", "first layer defect detected" — derived from the
+  printer's reported stage, with active HMS alerts or the raw error
+  code as fallbacks. The webhook JSON gains an optional `reason`
+  field.
+
 ## 1.3.1
 
 - Notification messages are now compact — two lines: event and printer

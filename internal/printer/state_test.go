@@ -334,6 +334,86 @@ func TestStateTracker_Reset(t *testing.T) {
 	assert.Equal(t, event.PrintStarted, events[0].Type)
 }
 
+func TestStateTracker_PauseReason(t *testing.T) {
+	tests := []struct {
+		name       string
+		mutate     func(r *parsedReport)
+		wantReason string
+	}{
+		{
+			name:       "filament runout stage",
+			mutate:     func(r *parsedReport) { r.StageID = 6 },
+			wantReason: "filament runout",
+		},
+		{
+			name:       "user pause stage",
+			mutate:     func(r *parsedReport) { r.StageID = 16 },
+			wantReason: "paused by user",
+		},
+		{
+			name:       "nozzle clog stage",
+			mutate:     func(r *parsedReport) { r.StageID = 35 },
+			wantReason: "nozzle clog detected",
+		},
+		{
+			name: "falls back to HMS alert text",
+			mutate: func(r *parsedReport) {
+				r.StageID = 0
+				r.HMSErrors = []string{"AMS filament has run out"}
+			},
+			wantReason: "AMS filament has run out",
+		},
+		{
+			name: "falls back to error code",
+			mutate: func(r *parsedReport) {
+				r.StageID = 0
+				r.ErrorCode = 0x0300400A
+			},
+			wantReason: "error code 0x0300400A",
+		},
+		{
+			name:       "no reason available",
+			mutate:     func(r *parsedReport) { r.StageID = 0 },
+			wantReason: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := newStateTracker("test-printer")
+			st.update(baseReport(event.StateRunning))
+
+			r := baseReport(event.StatePause)
+			tt.mutate(r)
+
+			events := st.update(r)
+
+			var paused *event.Event
+			for i := range events {
+				if events[i].Type == event.PrintPaused {
+					paused = &events[i]
+				}
+			}
+			require.NotNil(t, paused, "expected a paused event")
+			assert.Equal(t, tt.wantReason, paused.Reason)
+		})
+	}
+}
+
+func TestStateTracker_ResumeHasNoReason(t *testing.T) {
+	st := newStateTracker("test-printer")
+	st.update(baseReport(event.StateRunning))
+
+	r := baseReport(event.StatePause)
+	r.StageID = 6
+	st.update(r)
+
+	events := st.update(baseReport(event.StateRunning))
+	require.Len(t, events, 1)
+	assert.Equal(t, event.PrintResumed, events[0].Type)
+	assert.Empty(t, events[0].Reason)
+}
+
 func TestStateTracker_EventFieldsPopulated(t *testing.T) {
 	st := newStateTracker("my-printer")
 

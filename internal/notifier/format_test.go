@@ -47,6 +47,26 @@ func TestSummaryLine(t *testing.T) {
 			ev:   event.Event{Progress: 0},
 			want: "0%",
 		},
+		{
+			name: "pause reason appended",
+			ev: event.Event{
+				Filename: "benchy.3mf",
+				Progress: 42,
+				ETA:      "1h35m",
+				Reason:   "filament runout",
+			},
+			want: "benchy.3mf · 42% · ETA 1h35m · filament runout",
+		},
+		{
+			name: "reason not duplicated when equal to error",
+			ev: event.Event{
+				Filename: "part.gcode",
+				Progress: 15,
+				Reason:   "nozzle clog detected",
+				ErrorMsg: "nozzle clog detected",
+			},
+			want: "part.gcode · 15% · nozzle clog detected",
+		},
 	}
 
 	for _, tt := range tests {
